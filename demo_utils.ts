@@ -7,7 +7,7 @@ import * as dotenv from 'dotenv';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 import { sepolia } from 'viem/chains';
-import { KeyManager, FundingManager, StateValidator, RoleIds } from '../../../packages/sdk/src/index.js';
+import { KeyManager, FundingManager, StateValidator, RoleIds } from '../aastar-sdk/packages/sdk/src/index.js';
 import type { Hex, Address } from 'viem';
 
 const __filename = fileURLToPath(import.meta.url);

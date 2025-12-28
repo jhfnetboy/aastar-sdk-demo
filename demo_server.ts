@@ -20,7 +20,7 @@ import {
     createEndUserClient,
     RoleIds,
     RoleDataFactory
-} from '../../../packages/sdk/src/index.js';
+} from '../aastar-sdk/packages/sdk/src/index.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
