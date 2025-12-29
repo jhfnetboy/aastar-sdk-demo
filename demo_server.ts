@@ -90,26 +90,34 @@ app.post('/api/fund-accounts', async (req, res) => {
 
         // 充值 ETH
         console.log('\n   📤 Funding ETH...');
+        const ethErrors = [];
         for (let i = 0; i < demoState.accounts.length; i++) {
             const account = demoState.accounts[i];
             console.log(`      [${i + 1}/${demoState.accounts.length}] Funding ${account.name} (${account.address})...`);
             
-            await FundingManager.fundWithETH({
+            const result = await FundingManager.fundWithETH({
                 rpcUrl: RPC_URL,
                 chain: sepolia,
                 supplierKey: SUPPLIER_KEY,
                 targetAddress: account.address,
                 amount: ethAmount || '0.05'
             });
+            
+            if (!result.success) {
+                const error = `Failed to fund ${account.name} with ETH: ${result.error}`;
+                console.error(`      ❌ ${error}`);
+                ethErrors.push(error);
+            }
         }
 
         // 充值 GToken
         console.log('\n   🪙 Funding GToken...');
+        const tokenErrors = [];
         for (let i = 0; i < demoState.accounts.length; i++) {
             const account = demoState.accounts[i];
             console.log(`      [${i + 1}/${demoState.accounts.length}] Funding ${account.name} with GToken...`);
             
-            await FundingManager.fundWithToken({
+            const result = await FundingManager.fundWithToken({
                 rpcUrl: RPC_URL,
                 chain: sepolia,
                 supplierKey: SUPPLIER_KEY,
@@ -117,6 +125,18 @@ app.post('/api/fund-accounts', async (req, res) => {
                 tokenAddress: process.env.GTOKEN_ADDR as Address,
                 amount: tokenAmount || '100'
             });
+            
+            if (!result.success) {
+                const error = `Failed to fund ${account.name} with GToken: ${result.error}`;
+                console.error(`      ❌ ${error}`);
+                tokenErrors.push(error);
+            }
+        }
+        
+        // 如果有任何错误，抛出异常
+        if (ethErrors.length > 0 || tokenErrors.length > 0) {
+            const allErrors = [...ethErrors, ...tokenErrors];
+            throw new Error(`Funding failed:\n${allErrors.join('\n')}`);
         }
 
         // 获取最终余额
