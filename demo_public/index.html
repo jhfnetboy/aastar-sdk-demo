@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AAStar SDK Interactive Demo</title>
+    <title>AAStar SDK Demo - 增强版</title>
     <style>
         * {
             margin: 0;
@@ -16,140 +16,125 @@
             background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
             color: #eee;
             min-height: 100vh;
-            padding: 20px;
         }
 
         .container {
-            max-width: 1400px;
-            margin: 0 auto;
-        }
-
-        header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            padding: 30px;
-            border-radius: 16px;
-            margin-bottom: 30px;
-            box-shadow: 0 8px 32px rgba(102, 126, 234, 0.3);
-        }
-
-        h1 {
-            font-size: 2.5rem;
-            font-weight: 700;
-            margin-bottom: 10px;
-        }
-
-        .subtitle {
-            opacity: 0.9;
-            font-size: 1.1rem;
-        }
-
-        .main-content {
-            display: grid;
-            grid-template-columns: 400px 1fr;
-            gap: 30px;
-        }
-
-        .workflow {
             display: flex;
-            flex-direction: column;
-            gap: 15px;
+            height: 100vh;
         }
 
-        .step-card {
-            background: rgba(22, 33, 62, 0.8);
-            backdrop-filter: blur(10px);
+        /* 左侧导航栏 */
+        .sidebar {
+            width: 320px;
+            background: rgba(22, 33, 62, 0.95);
+            border-right: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .step {
+            background: rgba(15, 76, 117, 0.2);
             border: 1px solid rgba(255, 255, 255, 0.1);
             border-radius: 12px;
-            padding: 20px;
+            padding: 15px;
+            margin-bottom: 12px;
+            cursor: pointer;
             transition: all 0.3s ease;
         }
 
-        .step-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 24px rgba(15, 76, 117, 0.4);
-            border-color: #0f4c75;
+        .step:hover {
+            background: rgba(15, 76, 117, 0.3);
+            border-color: #3282b8;
         }
 
-        .step-card.completed {
+        .step.active {
+            background: linear-gradient(135deg, #0f4c75 0%, #3282b8 100%);
+            border-color: #3282b8;
+        }
+
+        .step.completed {
             border-color: #4ade80;
-            background: rgba(74, 222, 128, 0.1);
         }
 
         .step-header {
             display: flex;
             align-items: center;
-            gap: 15px;
-            margin-bottom: 15px;
+            gap: 12px;
         }
 
         .step-icon {
-            width: 40px;
-            height: 40px;
-            background: linear-gradient(135deg, #0f4c75 0%, #3282b8 100%);
-            border-radius: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 20px;
+            font-size: 24px;
         }
 
         .step-title {
-            font-size: 1.1rem;
             font-weight: 600;
+            flex: 1;
         }
 
         .step-status {
-            margin-left: auto;
-            font-size: 20px;
+            font-size: 18px;
         }
 
-        .run-btn {
-            width: 100%;
-            padding: 12px;
-            background: linear-gradient(135deg, #0f4c75 0%, #3282b8 100%);
-            border: none;
-            border-radius: 8px;
-            color: white;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
+        /* 右侧内容区 */
+        .content {
+            flex: 1;
+            padding: 30px;
+            overflow-y: auto;
         }
 
-        .run-btn:hover:not(:disabled) {
-            transform: scale(1.02);
-            box-shadow: 0 4px 16px rgba(50, 130, 184, 0.5);
+        .content-header {
+            margin-bottom: 30px;
         }
 
-        .run-btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
+        .content-title {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 10px;
         }
 
-        .results-panel {
-            background: rgba(22, 33, 62, 0.6);
+        .content-subtitle {
+            opacity: 0.7;
+            font-size: 1.1rem;
+        }
+
+        /* 卡片样式 */
+        .card {
+            background: rgba(22, 33, 62, 0.8);
             backdrop-filter: blur(10px);
             border: 1px solid rgba(255, 255, 255, 0.1);
             border-radius: 16px;
-            padding: 30px;
+            padding: 25px;
+            margin-bottom: 20px;
         }
 
-        .panel-title {
-            font-size: 1.5rem;
+        .card-title {
+            font-size: 1.3rem;
             font-weight: 600;
-            margin-bottom: 20px;
+            margin-bottom: 15px;
             display: flex;
             align-items: center;
             gap: 10px;
         }
 
+        /* 表格样式 */
         table {
             width: 100%;
             border-collapse: collapse;
-            margin-bottom: 30px;
+            margin: 15px 0;
         }
 
         th, td {
-            padding: 15px;
+            padding: 12px;
             text-align: left;
             border-bottom: 1px solid rgba(255, 255, 255, 0.1);
         }
@@ -164,47 +149,38 @@
             background: rgba(255, 255, 255, 0.05);
         }
 
-        .tx-log {
-            max-height: 300px;
-            overflow-y: auto;
-            background: rgba(0, 0, 0, 0.3);
+        /* 按钮样式 */
+        .btn {
+            padding: 12px 24px;
+            background: linear-gradient(135deg, #0f4c75 0%, #3282b8 100%);
+            border: none;
             border-radius: 8px;
-            padding: 15px;
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
         }
 
-        .tx-item {
-            padding: 10px;
-            margin-bottom: 10px;
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 6px;
-            font-family: 'Monaco', monospace;
+        .btn:hover:not(:disabled) {
+            transform: scale(1.02);
+            box-shadow: 0 4px 16px rgba(50, 130, 184, 0.5);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #059669 0%, #10b981 100%);
+        }
+
+        .btn-small {
+            padding: 8px 16px;
             font-size: 0.9rem;
         }
 
-        .tx-type {
-            color: #3282b8;
-            font-weight: 600;
-        }
-
-        .tx-hash {
-            color: #4ade80;
-            word-break: break-all;
-        }
-
-        .loading {
-            display: inline-block;
-            width: 16px;
-            height: 16px;
-            border: 2px solid rgba(255, 255, 255, 0.3);
-            border-top-color: #3282b8;
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-        }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
+        /* 徽章样式 */
         .badge {
             display: inline-block;
             padding: 4px 12px;
@@ -222,101 +198,453 @@
             background: rgba(251, 191, 36, 0.2);
             color: #fbbf24;
         }
+
+        .badge-info {
+            background: rgba(59, 130, 246, 0.2);
+            color: #3b82f6;
+        }
+
+        .badge-eoa {
+            background: rgba(139, 92, 246, 0.2);
+            color: #a78bfa;
+        }
+
+        .badge-aa {
+            background: rgba(236, 72, 153, 0.2);
+            color: #f472b6;
+            border: 1px solid rgba(236, 72, 153, 0.3);
+        }
+
+        /* 状态卡片样式 */
+        .status-card {
+            background: rgba(15, 76, 117, 0.2);
+            border: 1px solid #3282b8;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 15px 0;
+            display: grid;
+            gap: 10px;
+        }
+
+        .status-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .status-label {
+            opacity: 0.7;
+            font-size: 0.9rem;
+        }
+
+        .status-value {
+            font-weight: 600;
+        }
+
+        /* 运营商类型选择 */
+        .type-selector {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .type-option {
+            background: rgba(22, 33, 62, 0.6);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 15px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: center;
+        }
+
+        .type-option:hover {
+            border-color: rgba(50, 130, 184, 0.5);
+        }
+
+        .type-option.selected {
+            border-color: #3282b8;
+            background: rgba(50, 130, 184, 0.2);
+        }
+
+        .type-icon {
+            font-size: 2rem;
+            margin-bottom: 10px;
+            display: block;
+        }
+
+        .type-name {
+            font-weight: 700;
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .type-desc {
+            font-size: 0.8rem;
+            opacity: 0.6;
+        }
+
+        /* 加载动画 */
+        .loading {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top-color: #3282b8;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* 隐藏类 */
+        .hidden {
+            display: none;
+        }
+
+        /* 状态信息框 */
+        .status-box {
+            background: rgba(15, 76, 117, 0.2);
+            border-left: 4px solid #3282b8;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+        }
+
+        .status-box.success {
+            background: rgba(74, 222, 128, 0.1);
+            border-left-color: #4ade80;
+        }
+
+        .status-box.error {
+            background: rgba(239, 68, 68, 0.1);
+            border-left-color: #ef4444;
+        }
+
+        /* Toast 提示 */
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(22, 33, 62, 0.95);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            padding: 15px 20px;
+            min-width: 300px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            z-index: 1000;
+            animation: slideIn 0.3s ease;
+        }
+
+        .toast.success {
+            border-left: 4px solid #4ade80;
+        }
+
+        .toast.error {
+            border-left: 4px solid #ef4444;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        /* 表单样式 */
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #3282b8;
+        }
+
+        .form-input, .form-select {
+            width: 100%;
+            padding: 10px 15px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            color: #eee;
+            font-size: 1rem;
+        }
+
+        .form-input:focus, .form-select:focus {
+            outline: none;
+            border-color: #3282b8;
+        }
+
+        /* 列表卡片 */
+        .list-card {
+            background: rgba(15, 76, 117, 0.15);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 12px;
+        }
+
+        .list-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .list-card-title {
+            font-weight: 600;
+            font-size: 1.1rem;
+        }
+
+        .list-card-detail {
+            font-size: 0.9rem;
+            opacity: 0.8;
+            margin: 5px 0;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <header>
-            <h1>🚀 AAStar SDK Interactive Demo</h1>
-            <p class="subtitle">Experience the complete workflow: from account creation to gasless transactions</p>
-        </header>
-
-        <div class="main-content">
-            <!-- Workflow Steps -->
-            <div class="workflow">
-                <div class="step-card" id="step-1">
-                    <div class="step-header">
-                        <div class="step-icon">👥</div>
-                        <div class="flex justify-between items-center mb-4">
-                <h3 class="text-lg font-semibold">Select Account</h3>
-                <button onclick="addNewAccount()" class="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm transition transition-colors">
-                    + New Account
-                </button>
-            </div>
-            <div id="accountList" class="grid grid-cols-1 gap-3">
-                <!-- Accounts will be loaded here -->
-            </div>
-        <button class="run-btn" onclick="runStep(1)">Run Step 1</button>
-                </div>
-
-                <div class="step-card" id="step-2">
-                    <div class="step-header">
-                        <div class="step-icon">💰</div>
-                        <div class="step-title">Fund Accounts</div>
-                        <div class="step-status"></div>
-                    </div>
-                    <button class="run-btn" onclick="runStep(2)" disabled>Run Step 2</button>
-                </div>
-
-                <div class="step-card" id="step-3">
-                    <div class="step-header">
-                        <div class="step-icon">🏛️</div>
-                        <div class="step-title">Launch Community</div>
-                        <div class="step-status"></div>
-                    </div>
-                    <button class="run-btn" onclick="runStep(3)" disabled>Run Step 3</button>
-                </div>
-
-                <div class="step-card" id="step-4">
-                    <div class="step-header">
-                        <div class="step-icon">⚙️</div>
-                        <div class="step-title">Setup Operator</div>
-                        <div class="step-status"></div>
-                    </div>
-                    <button class="run-btn" onclick="runStep(4)" disabled>Run Step 4</button>
-                </div>
-
-                <div class="step-card" id="step-5">
-                    <div class="step-header">
-                        <div class="step-icon">👤</div>
-                        <div class="step-title">Onboard User</div>
-                        <div class="step-status"></div>
-                    </div>
-                    <button class="run-btn" onclick="runStep(5)" disabled>Run Step 5</button>
-                </div>
-
-                <div class="step-card" id="step-6">
-                    <div class="step-header">
-                        <div class="step-icon">📊</div>
-                        <div class="step-title">Benchmark Transactions</div>
-                        <div class="step-status"></div>
-                    </div>
-                    <button class="run-btn" onclick="runStep(6)" disabled>Run Step 6</button>
+        <!-- 左侧步骤导航 -->
+        <div class="sidebar">
+            <div class="logo">🚀 AAStar Demo</div>
+            
+            <div class="step active" onclick="switchStep(1)">
+                <div class="step-header">
+                    <span class="step-icon">👥</span>
+                    <span class="step-title">账户管理</span>
+                    <span class="step-status" id="step1-status">⏳</span>
                 </div>
             </div>
 
-            <!-- Results Panel -->
-            <div class="results-panel">
-                <div class="panel-title">📈 Benchmark Results</div>
-                <table id="benchmark-table">
-                    <thead>
-                        <tr>
-                            <th>Scenario</th>
-                            <th>Gas Used</th>
-                            <th>Overhead</th>
-                            <th>Transaction Hash</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td colspan="4" style="text-align: center; opacity: 0.5;">Run Step 6 to see benchmark results</td>
-                        </tr>
-                    </tbody>
-                </table>
+            <div class="step" onclick="switchStep(2)">
+                <div class="step-header">
+                    <span class="step-icon">🏛️</span>
+                    <span class="step-title">启动社区</span>
+                    <span class="step-status" id="step2-status">⏳</span>
+                </div>
+            </div>
 
-                <div class="panel-title">📝 Transaction Log</div>
-                <div class="tx-log" id="tx-log">
-                    <div style="text-align: center; opacity: 0.5;">No transactions yet</div>
+            <div class="step" onclick="switchStep(3)">
+                <div class="step-header">
+                    <span class="step-icon">⚙️</span>
+                    <span class="step-title">运营商设置</span>
+                    <span class="step-status" id="step3-status">⏳</span>
+                </div>
+            </div>
+
+            <div class="step" onclick="switchStep(4)">
+                <div class="step-header">
+                    <span class="step-icon">👤</span>
+                    <span class="step-title">用户入驻</span>
+                    <span class="step-status" id="step4-status">⏳</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 右侧内容区 -->
+        <div class="content">
+            <!-- Step 1: 账户管理 -->
+            <div id="step1-content">
+                <div class="content-header">
+                    <h1 class="content-title">👥 账户管理</h1>
+                    <p class="content-subtitle">查看和管理演示账户，检查余额状态</p>
+                </div>
+
+                <div class="card">
+                    <div class="card-title">
+                        📊 账户列表
+                        <button class="btn btn-success btn-small" style="margin-left: auto;" onclick="addNewAccount('EOA')">+ EOA 账户</button>
+                        <button class="btn btn-small" onclick="addNewAccount('AA')">+ AA 账户</button>
+                        <button class="btn btn-small" onclick="refreshBalances()">🔄 刷新</button>
+                    </div>
+                    
+                    <table id="accounts-table">
+                        <thead>
+                            <tr>
+                                <th>名称</th>
+                                <th>类型</th>
+                                <th>地址</th>
+                                <th>ETH</th>
+                                <th>GToken</th>
+                                <th>aPNTs</th>
+                            </tr>
+                        </thead>
+                        <tbody id="accounts-tbody">
+                            <tr>
+                                <td colspan="6" style="text-align: center; opacity: 0.5;">
+                                    <span class="loading"></span> 加载中...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="card">
+                    <div class="card-title">💰 批量充值</div>
+                    <button class="btn" onclick="fundAllAccounts()">为所有账户充值</button>
+                </div>
+            </div>
+
+            <!-- Step 2: 启动社区 -->
+            <div id="step2-content" class="hidden">
+                <div class="content-header">
+                    <h1 class="content-title">🏛️ 启动社区</h1>
+                    <p class="content-subtitle">注册社区角色并部署社区 Token</p>
+                </div>
+
+                <div class="card">
+                    <div class="card-title">📋 已有社区</div>
+                    <div id="communities-list">
+                        <span class="loading"></span> 加载中...
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-title">🚀 启动新社区</div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">选择管理员账户</label>
+                        <select class="form-select" id="community-account-select" onchange="checkStatus('community')">
+                            <option value="">请选择账户...</option>
+                        </select>
+                    </div>
+
+                    <!-- 社区状态卡片 -->
+                    <div id="community-status-box" class="hidden">
+                        <div class="status-card">
+                            <div class="status-item">
+                                <span class="status-label">角色状态</span>
+                                <span class="status-value" id="status-community-role">⏳ 检查中...</span>
+                            </div>
+                            <div id="community-info-details" class="hidden">
+                                <div class="status-item">
+                                    <span class="status-label">社区 Token</span>
+                                    <span class="status-value" id="status-community-token">--</span>
+                                </div>
+                                <div class="status-item">
+                                    <span class="status-label">社区名称</span>
+                                    <span class="status-value" id="status-community-name">--</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="launch-form">
+                        <div class="form-group">
+                            <label class="form-label">社区名称</label>
+                            <input type="text" class="form-input" id="community-name" value="DemoDAO" />
+                        </div>
+                        <button class="btn" id="launch-btn" onclick="launchCommunity()">启动社区</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 3: 运营商设置 -->
+            <div id="step3-content" class="hidden">
+                <div class="content-header">
+                    <h1 class="content-title">⚙️ 运营商设置</h1>
+                    <p class="content-subtitle">配置 Paymaster 运营商</p>
+                </div>
+
+                <div class="card">
+                    <div class="card-title">📋 已有运营商</div>
+                    <div id="operators-list">
+                        <span class="loading"></span> 加载中...
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-title">🔧 设置新运营商</div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">选择操作账户</label>
+                        <select class="form-select" id="operator-account-select" onchange="checkStatus('operator')">
+                            <option value="">请选择账户...</option>
+                        </select>
+                    </div>
+
+                    <div id="operator-status-box" class="hidden">
+                        <div class="status-card">
+                            <div class="status-item">
+                                <span class="status-label">运营商类型</span>
+                                <span class="status-value" id="status-operator-type">❌ 未注册</span>
+                            </div>
+                            <div id="operator-details" class="hidden">
+                                <div class="status-item">
+                                    <span class="status-label">aPNTs 余额</span>
+                                    <span class="status-value" id="status-operator-balance">0.00</span>
+                                </div>
+                                <div class="status-item">
+                                    <span class="status-label">配置状态</span>
+                                    <span class="status-value" id="status-operator-config">⚠️ 未配置</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="setup-form">
+                        <div class="form-label">选择运营商类型</div>
+                        <div class="type-selector">
+                            <div class="type-option selected" id="type-super" onclick="selectOperatorType('super')">
+                                <span class="type-icon">⚡</span>
+                                <span class="type-name">SuperPaymaster</span>
+                                <span class="type-desc">跨社区共享，支持多币种</span>
+                            </div>
+                            <div class="type-option" id="type-v4" onclick="selectOperatorType('v4')">
+                                <span class="type-icon">📦</span>
+                                <span class="type-name">Paymaster V4</span>
+                                <span class="type-desc">社区独立部署，单币种</span>
+                            </div>
+                        </div>
+                        <button class="btn" id="setup-btn" onclick="setupOperator()">开始设置</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 4: 用户入驻 -->
+            <div id="step4-content" class="hidden">
+                <div class="content-header">
+                    <h1 class="content-title">👤 用户入驻</h1>
+                    <p class="content-subtitle">部署 AA 账户并 Mint SBT</p>
+                </div>
+
+                <div class="card">
+                    <div class="card-title">🎯 用户入驻流程</div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">选择用户账户 (EOA)</label>
+                        <select class="form-select" id="user-account-select" onchange="checkStatus('user')">
+                            <option value="">请选择账户...</option>
+                        </select>
+                    </div>
+
+                    <div id="user-status-box" class="hidden">
+                        <div class="status-card">
+                            <div class="status-item">
+                                <span class="status-label">账户状态</span>
+                                <span class="status-value" id="status-user-aa">⏳ 检查中...</span>
+                            </div>
+                            <div class="status-item">
+                                <span class="status-label">SBT 状态</span>
+                                <span class="status-value" id="status-user-sbt">未持有</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="btn-group" style="display: flex; gap: 10px;">
+                        <button class="btn" id="onboard-btn" onclick="onboardUser()">部署 AA 并 Mint SBT</button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -325,210 +653,301 @@
     <script>
         const API_BASE = 'http://localhost:3000/api';
         let currentStep = 1;
+        let accountsData = [];
+        let balancesData = [];
+        let communitiesData = [];
+        let operatorsData = [];
+        let selectedOperatorType = 'super';
 
-        async function addNewAccount() {
+        // 选择运营商类型
+        function selectOperatorType(type) {
+            selectedOperatorType = type;
+            document.getElementById('type-super').classList.toggle('selected', type === 'super');
+            document.getElementById('type-v4').classList.toggle('selected', type === 'v4');
+        }
+
+        // 检查账户状态 (Step 2/3/4 自动触发)
+        async function checkStatus(step) {
+            const selectId = {
+                'community': 'community-account-select',
+                'operator': 'operator-account-select',
+                'user': 'user-account-select'
+            }[step];
+            
+            const accountIdx = document.getElementById(selectId).value;
+            if (!accountIdx) {
+                document.getElementById(`${step}-status-box`).classList.add('hidden');
+                return;
+            }
+
+            const account = accountsData[accountIdx];
+            const statusBox = document.getElementById(`${step}-status-box`);
+            statusBox.classList.remove('hidden');
+
             try {
-                const response = await fetch('/api/add-account', { method: 'POST' });
-                const result = await response.json();
-                
-                if (result.success) {
-                    addLog(`✅ New account created: ${result.account.name}`, false);
-                    // Refresh account list logic
-                    const accountList = document.getElementById('accountList');
-                    // We need to reload the whole list properly.
-                    // For now, let's just trigger a reload if we have a function for it.
-                    // Since the current loadAccounts is not fully defined in my view, I will just log success.
-                    // Ideally we call the function that populates the list.
-                    // Let's assume runStep(1) populates it or we have a specific loader.
-                    // Based on previous code, runStep(1) generates/loads accounts.
-                    // But we want to just refresh the UI.
+                if (step === 'community') {
+                    const roleLabel = document.getElementById('status-community-role');
+                    const detailsDiv = document.getElementById('community-info-details');
+                    const launchBtn = document.getElementById('launch-btn');
+                    roleLabel.innerHTML = '<span class="loading"></span> 检查中...';
                     
-                    // Simple hack: reload page or re-fetch list.
-                    // Let's just append for now if list exists.
-                    if (accountList) {
-                        const div = document.createElement('div');
-                        div.className = 'bg-gray-700 p-3 rounded flex justify-between items-center';
-                        div.innerHTML = `
-                             <div>
-                                <div class="font-bold">${result.account.name}</div>
-                                <div class="text-xs text-gray-400 font-mono">${result.account.address}</div>
-                            </div>
-                            <div class="text-xs bg-gray-600 px-2 py-1 rounded">New</div>
-                        `;
-                        accountList.appendChild(div);
-                    }
-                } else {
-                    addLog(`❌ ${result.error}`, true);
-                }
-            } catch (e) {
-                addLog(`❌ Failed to add account: ${e.message}`, true);
-            }
-        }
-
-        async function addNewAccount() {
-            try {
-                const response = await fetch('/api/add-account', { method: 'POST' });
-                const result = await response.json();
-                
-                if (result.success) {
-                    addLog(`✅ New account created: ${result.account.name}`, false); // Changed showStatus to addLog
-                    // Refresh account list
-                    loadAccounts();
-                } else {
-                    addLog(`❌ ${result.error}`, true); // Changed showStatus to addLog
-                }
-            } catch (e) {
-                addLog(`❌ Failed to add account: ${e.message}`, true); // Changed showStatus to addLog
-            }
-        }
-
-        async function loadAccounts() {
-            // This function's content seems to be a copy of the start of runStep.
-            // Assuming it's meant to be a placeholder or a different implementation is expected.
-            // For now, it's included as provided in the instruction.
-            const stepCard = document.getElementById(`step-${currentStep}`); // Changed `step` to `currentStep` for context
-            const btn = stepCard.querySelector('.run-btn');
-            const status = stepCard.querySelector('.step-status');
-
-            btn.disabled = true;
-        }
-
-        async function runStep(step) {
-            const stepCard = document.getElementById(`step-${step}`);
-            const btn = stepCard.querySelector('.run-btn');
-            const status = stepCard.querySelector('.step-status');
-
-            btn.disabled = true;
-            status.innerHTML = '<span class="loading"></span>';
-
-            try {
-                let result;
-                switch(step) {
-                    case 1:
-                        result = await fetch(`${API_BASE}/generate-accounts`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ names: ['Alice', 'Bob', 'Charlie'] })
-                        }).then(r => r.json());
-                        
-                        // 显示详细账户信息
-                        result.accounts.forEach(acc => {
-                            addLog(`Generated ${acc.name}:`);
-                            addLog(`  Address: ${acc.address}`);
-                            addLog(`  Private Key: ${acc.privateKey}`);
-                        });
-                        break;
-                        
-                    case 2:
-                        addLog('Starting funding process...');
-                        result = await fetch(`${API_BASE}/fund-accounts`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ ethAmount: '0.05', tokenAmount: '100' })
-                        }).then(r => r.json());
-                        
-                        // 显示余额信息
-                        if (result.balances) {
-                            result.balances.forEach(bal => {
-                                addLog(`${bal.name}: ${bal.eth} ETH, ${bal.gtoken} GToken`);
-                            });
+                    const response = await fetch(`${API_BASE}/get-communities`, { method: 'POST' });
+                    const result = await response.json();
+                    if (result.success) {
+                        const info = result.communities.find(c => c.accountAddress.toLowerCase() === account.address.toLowerCase());
+                        if (info && info.hasRole) {
+                            roleLabel.innerHTML = '✅ 已注册';
+                            detailsDiv.classList.remove('hidden');
+                            document.getElementById('status-community-token').textContent = info.tokenAddress.slice(0, 10) + '...';
+                            document.getElementById('status-community-name').textContent = info.communityData?.name || 'DemoDAO';
+                            launchBtn.textContent = '重新启动/更新';
+                        } else {
+                            roleLabel.innerHTML = '❌ 未注册';
+                            detailsDiv.classList.add('hidden');
+                            launchBtn.textContent = '启动社区';
                         }
-                        addLog('All accounts funded successfully!');
-                        break;
-                        
-                    case 3:
-                        addLog('Launching community...');
-                        result = await fetch(`${API_BASE}/launch-community`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ accountIndex: 0, communityName: 'DemoDAO' })
-                        }).then(r => r.json());
-                        addLog(`Community launched!`);
-                        addLog(`  Token: ${result.tokenAddress || 'Pending...'}`);
-                        const txCount = result.transactions ? result.transactions.length : 0;
-                        addLog(`  Transactions: ${txCount}`);
-                        break;
-                        
-                    case 4:
-                        addLog('Setting up operator...');
-                        result = await fetch(`${API_BASE}/setup-operator`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ accountIndex: 1 })
-                        }).then(r => r.json());
-                        addLog(`Operator setup complete (${result.transactions.length} txs)`);
-                        break;
-                        
-                    case 5:
-                        addLog('Onboarding user...');
-                        result = await fetch(`${API_BASE}/onboard-user`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ accountIndex: 2 })
-                        }).then(r => r.json());
-                        addLog(`User onboarded! SBT ID: ${result.sbtId}`);
-                        break;
-                        
-                    case 6:
-                        addLog('Running benchmark...');
-                        result = await fetch(`${API_BASE}/benchmark`, {
-                            method: 'POST'
-                        }).then(r => r.json());
-                        displayBenchmark(result.results);
-                        addLog('Benchmark complete');
-                        break;
-                }
+                    }
+                } else if (step === 'operator') {
+                    const typeLabel = document.getElementById('status-operator-type');
+                    const detailsDiv = document.getElementById('operator-details');
+                    const setupBtn = document.getElementById('setup-btn');
+                    typeLabel.innerHTML = '<span class="loading"></span> 检查中...';
 
-                if (result.success) {
-                    status.innerHTML = '✅';
-                    stepCard.classList.add('completed');
-                    enableNextStep(step + 1);
-                } else {
-                    status.innerHTML = '❌';
-                    addLog(`Error: ${result.error}`, true);
+                    const response = await fetch(`${API_BASE}/get-operators`, { method: 'POST' });
+                    const result = await response.json();
+                    if (result.success) {
+                        const info = result.operators.find(o => o.accountAddress.toLowerCase() === account.address.toLowerCase());
+                        if (info && info.type) {
+                            typeLabel.innerHTML = `✅ ${info.type === 'super' ? 'SuperPaymaster' : 'Paymaster V4'}`;
+                            detailsDiv.classList.remove('hidden');
+                            const balance = info.superPaymaster?.balance || info.paymasterV4?.balance || 0;
+                            document.getElementById('status-operator-balance').textContent = (Number(balance) / 1e18).toFixed(2);
+                            document.getElementById('status-operator-config').textContent = info.superPaymaster?.isConfigured ? '✅ 已配置' : '⚠️ 未配置';
+                            setupBtn.textContent = '重新配置';
+                        } else {
+                            typeLabel.innerHTML = '❌ 未注册';
+                            detailsDiv.classList.add('hidden');
+                            setupBtn.textContent = '开始设置';
+                        }
+                    }
+                } else if (step === 'user') {
+                    const aaLabel = document.getElementById('status-user-aa');
+                    const sbtLabel = document.getElementById('status-user-sbt');
+                    aaLabel.innerHTML = '<span class="loading"></span> 检查中...';
+                    
+                    // 这里可以添加检查 AA 是否部署的逻辑
+                    aaLabel.textContent = account.type === 'AA' ? '✅ 已创建(计算地址)' : '❌ 尚未创建';
+                    sbtLabel.textContent = '检查中...';
+                    
+                    const response = await fetch(`${API_BASE}/get-communities`, { method: 'POST' });
+                    const result = await response.json();
+                    // 这里简化逻辑：检查该 EOA 是否在某社区有 SBT (实际上应该检查其 AA 地址)
+                    sbtLabel.textContent = '未持有';
                 }
             } catch (error) {
-                status.innerHTML = '❌';
-                addLog(`Error: ${error.message}`, true);
+                console.error('检查状态失败:', error);
             }
         }
 
-        function enableNextStep(step) {
-            if (step <= 6) {
-                const nextCard = document.getElementById(`step-${step}`);
-                nextCard.querySelector('.run-btn').disabled = false;
+        // Toast 提示
+        function showToast(message, type = 'success') {
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            setTimeout(() => {
+                toast.style.animation = 'slideIn 0.3s ease reverse';
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        // 切换步骤
+        function switchStep(step) {
+            document.querySelectorAll('.step').forEach((el, idx) => el.classList.toggle('active', idx + 1 === step));
+            for (let i = 1; i <= 4; i++) document.getElementById(`step${i}-content`).classList.add('hidden');
+            document.getElementById(`step${step}-content`).classList.remove('hidden');
+            currentStep = step;
+            if (step === 1) loadAccounts();
+            else if (step === 2) { loadCommunities(); populateAccountSelect('community-account-select'); }
+            else if (step === 3) { loadOperators(); populateAccountSelect('operator-account-select'); }
+            else if (step === 4) { populateAccountSelect('user-account-select'); }
+        }
+
+        // 填充账户选择器
+        function populateAccountSelect(selectId) {
+            const select = document.getElementById(selectId);
+            select.innerHTML = '<option value="">请选择账户...</option>' +
+                accountsData.map((acc, idx) => `<option value="${idx}">${acc.name} (${acc.address.slice(0, 10)}...)</option>`).join('');
+        }
+
+        // 加载账户列表
+        async function loadAccounts() {
+            try {
+                let response = await fetch(`${API_BASE}/state`);
+                let result = await response.json();
+                if (!result.accounts || result.accounts.length === 0) {
+                    response = await fetch(`${API_BASE}/generate-accounts`, { method: 'POST' });
+                    result = await response.json();
+                }
+                if (result.success || result.accounts) {
+                    accountsData = result.accounts;
+                    renderAccountsTable();
+                    await refreshBalances();
+                }
+            } catch (error) {
+                showToast('加载账户失败', 'error');
             }
         }
 
-        function addLog(message, isError = false) {
-            const logDiv = document.getElementById('tx-log');
-            if (logDiv.children[0]?.textContent === 'No transactions yet') {
-                logDiv.innerHTML = '';
+        // 刷新余额
+        async function refreshBalances() {
+            try {
+                const response = await fetch(`${API_BASE}/get-balances`, { method: 'POST' });
+                const result = await response.json();
+                if (result.success) {
+                    balancesData = result.balances;
+                    renderAccountsTable();
+                }
+            } catch (error) {
+                showToast('刷新余额失败', 'error');
             }
-            const item = document.createElement('div');
-            item.className = 'tx-item';
-            item.innerHTML = `
-                <div class="tx-type" style="color: ${isError ? '#ef4444' : '#3282b8'}">${new Date().toLocaleTimeString()}</div>
-                <div>${message}</div>
-            `;
-            logDiv.insertBefore(item, logDiv.firstChild);
         }
 
-        function displayBenchmark(results) {
-            const tbody = document.querySelector('#benchmark-table tbody');
-            tbody.innerHTML = results.map(r => {
-                const baseline = 21000;
-                const overhead = ((parseInt(r.gasUsed) - baseline) / baseline * 100).toFixed(1);
+        // 渲染账户表格
+        function renderAccountsTable() {
+            const tbody = document.getElementById('accounts-tbody');
+            if (!accountsData.length) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; opacity: 0.5;">暂无账户</td></tr>';
+                return;
+            }
+            tbody.innerHTML = accountsData.map((account, idx) => {
+                const balance = balancesData[idx] || { eth: '0', gToken: '0', aPNTs: '0' };
+                const accountType = account.type || 'EOA';
                 return `
                     <tr>
-                        <td><strong>${r.scenario}</strong></td>
-                        <td>${parseInt(r.gasUsed).toLocaleString()}</td>
-                        <td><span class="badge ${overhead > 300 ? 'badge-warning' : 'badge-success'}">+${overhead}%</span></td>
-                        <td class="tx-hash">${r.hash.substring(0, 20)}...</td>
+                        <td><strong>${account.name}</strong></td>
+                        <td><span class="badge ${accountType === 'AA' ? 'badge-aa' : 'badge-eoa'}">${accountType}</span></td>
+                        <td><code style="font-size: 0.85rem;">${account.address.slice(0, 10)}...${account.address.slice(-8)}</code></td>
+                        <td>${(Number(balance.eth) / 1e18).toFixed(4)} ETH</td>
+                        <td>${(Number(balance.gToken) / 1e18).toFixed(2)}</td>
+                        <td>${(Number(balance.aPNTs) / 1e18).toFixed(2)}</td>
                     </tr>
                 `;
             }).join('');
         }
+
+        // 动作函数
+        async function addNewAccount(type) {
+            try {
+                const response = await fetch(`${API_BASE}/add-account`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type }) });
+                if ((await response.json()).success) { await loadAccounts(); showToast(`✅ ${type} 账户创建成功！`); }
+            } catch (e) { showToast('创建账户失败', 'error'); }
+        }
+
+        async function fundAllAccounts() {
+            try {
+                const btn = event.target; btn.disabled = true; btn.innerHTML = '<span class="loading"></span> 充值中...';
+                if ((await (await fetch(`${API_BASE}/fund-accounts`, { method: 'POST' })).json()).success) { await refreshBalances(); showToast('✅ 充值完成！'); }
+                btn.disabled = false; btn.textContent = '为所有账户充值';
+            } catch (e) { showToast('充值失败', 'error'); event.target.disabled = false; event.target.textContent = '为所有账户充值'; }
+        }
+
+        async function launchCommunity() {
+            const idx = document.getElementById('community-account-select').value;
+            if (!idx) return showToast('请选择账户', 'error');
+            try {
+                const btn = event.target; btn.disabled = true; btn.innerHTML = '<span class="loading"></span> 启动中...';
+                const res = await (await fetch(`${API_BASE}/launch-community`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accountIndex: parseInt(idx), name: document.getElementById('community-name').value }) })).json();
+                if (res.success) { await loadCommunities(); showToast('✅ 社区启动成功！'); await checkStatus('community'); }
+                else showToast('启动失败: ' + res.error, 'error');
+                btn.disabled = false; btn.textContent = '启动社区';
+            } catch (e) { showToast('启动失败', 'error'); event.target.disabled = false; }
+        }
+
+        async function loadCommunities() {
+            const listDiv = document.getElementById('communities-list');
+            try {
+                const res = await (await fetch(`${API_BASE}/get-communities`, { method: 'POST' })).json();
+                if (res.success && res.communities.length > 0) {
+                    listDiv.innerHTML = res.communities.map(c => {
+                        const adminDisplay = `
+                            <div class="code-box break-all text-xs" style="margin-top:2px;">
+                                <a href="https://sepolia.etherscan.io/address/${c.accountAddress}" target="_blank" class="link-primary">
+                                    ${c.accountAddress}
+                                </a>
+                                ${c.accountName && c.accountName !== 'Unknown Community' ? `<br/><span class="text-gray-500">(${c.accountName})</span>` : ''}
+                            </div>
+                        `;
+                        
+                        return `
+                        <div class="list-card">
+                            <div class="list-card-header">
+                                <span class="list-card-title">🏛️ ${c.communityData?.name || 'Community'}</span>
+                                <span class="badge ${c.hasRole ? 'badge-success' : 'badge-aa'}">${c.hasRole ? '已激活' : '待配置'}</span>
+                            </div>
+                            <div class="list-card-detail">
+                                <span class="text-gray-600 font-bold">Operator (Admin):</span>
+                                ${adminDisplay}
+                            </div>
+                            <div class="list-card-detail mt-2">Token: ${c.tokenAddress ? c.tokenAddress.slice(0, 10) + '...' : '未部署'}</div>
+                            <div class="list-card-detail" style="border-top: 1px dashed #eee; margin-top: 5px; padding-top: 5px;">
+                                ⚙️ Paymaster Binding: None
+                            </div>
+                        </div>
+                    `}).join('');
+                } else listDiv.innerHTML = '<div style="text-align: center; opacity: 0.5;">暂无社区</div>';
+            } catch (e) { listDiv.innerHTML = '加载失败'; }
+        }
+
+        async function setupOperator() {
+            const idx = document.getElementById('operator-account-select').value;
+            if (!idx) return showToast('请选择账户', 'error');
+            try {
+                const btn = event.target; btn.disabled = true; btn.innerHTML = '<span class="loading"></span> 设置中...';
+                const res = await (await fetch(`${API_BASE}/setup-operator`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accountIndex: parseInt(idx), type: selectedOperatorType }) })).json();
+                if (res.success) { await loadOperators(); showToast('✅ 运营商设置成功！'); await checkStatus('operator'); }
+                else showToast('设置失败: ' + res.error, 'error');
+                btn.disabled = false; btn.textContent = '开始设置';
+            } catch (e) { showToast('设置失败', 'error'); event.target.disabled = false; }
+        }
+
+        async function loadOperators() {
+            const listDiv = document.getElementById('operators-list');
+            try {
+                const res = await (await fetch(`${API_BASE}/get-operators`, { method: 'POST' })).json();
+                if (res.success && res.operators.length > 0) {
+                    listDiv.innerHTML = res.operators.map(o => `
+                        <div class="list-card">
+                            <div class="list-card-header">
+                                <span class="list-card-title">⚙️ ${o.accountName}</span>
+                                <span class="badge badge-success">${o.type === 'super' ? 'SuperPaymaster' : 'V4'}</span>
+                            </div>
+                            <div class="list-card-detail">地址: ${o.accountAddress?.slice(0, 10)}...</div>
+                            <div class="list-card-detail">余额: ${(Number(o.superPaymaster?.balance || 0) / 1e18).toFixed(2)} aPNTs</div>
+                        </div>
+                    `).join('');
+                } else listDiv.innerHTML = '<div style="text-align: center; opacity: 0.5;">暂无运营商</div>';
+            } catch (e) { listDiv.innerHTML = '加载失败'; }
+        }
+
+        async function onboardUser() {
+            const idx = document.getElementById('user-account-select').value;
+            if (!idx) return showToast('请选择账户', 'error');
+            try {
+                const btn = document.getElementById('onboard-btn');
+                btn.disabled = true; btn.innerHTML = '<span class="loading"></span> 处理中...';
+                const res = await (await fetch(`${API_BASE}/onboard-user`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accountIndex: parseInt(idx) }) })).json();
+                if (res.success) { showToast('✅ 入驻成功！SBT ID: ' + res.sbtId); await checkStatus('user'); }
+                else showToast('入驻失败: ' + res.error, 'error');
+                btn.disabled = false; btn.textContent = '部署 AA 并 Mint SBT';
+            } catch (e) { showToast('失败', 'error'); document.getElementById('onboard-btn').disabled = false; }
+        }
+
+        window.onload = async () => {
+            await loadAccounts();
+            await loadCommunities();
+            await loadOperators();
+        };
     </script>
 </body>
 </html>

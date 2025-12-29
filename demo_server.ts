@@ -9,7 +9,7 @@ import * as fs from 'fs';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
-import { http, parseEther, createPublicClient, erc20Abi, type Hex, type Address } from 'viem';
+import { http, parseEther, createPublicClient, createWalletClient, erc20Abi, type Hex, type Address, type Hash } from 'viem';
 import { privateKeyToAccount, generatePrivateKey } from 'viem/accounts';
 import { sepolia } from 'viem/chains';
 import { RegistryABI } from '@aastar/core';
@@ -21,7 +21,8 @@ import {
     createOperatorClient,
     createEndUserClient,
     RoleIds,
-    RoleDataFactory
+    RoleDataFactory,
+    SimpleAccountFactoryABI
 } from '../aastar-sdk/packages/sdk/src/index.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -33,12 +34,42 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'demo_public')));
 
+// BigInt JSON 序列化支持
+(BigInt.prototype as any).toJSON = function() { return this.toString() };
+
 const RPC_URL = process.env.SEPOLIA_RPC_URL!;
 const SUPPLIER_KEY = process.env.PRIVATE_KEY_SUPPLIER as Hex;
 
+// 统一配置中心 - 严格对应 .env.sepolia
+const CONFIG = {
+    rpcUrl: process.env.SEPOLIA_RPC_URL,
+    privateKeySupplier: process.env.PRIVATE_KEY_SUPPLIER,
+    addresses: {
+        registry: process.env.REGISTRY_ADDR as Address,
+        gTokenStaking: process.env.STAKING_ADDR as Address,
+        superPaymaster: process.env.SUPER_PAYMASTER as Address,
+        gToken: process.env.GTOKEN_ADDR as Address,
+        xPNTsFactory: process.env.XPNTS_FACTORY_ADDR as Address,
+        paymasterFactory: process.env.PAYMASTER_FACTORY_ADDR as Address,
+        mySBT: process.env.MYSBT_ADDR as Address,
+        simpleAccountFactory: process.env.SIMPLE_ACCOUNT_FACTORY as Address
+    }
+};
+
+if (!CONFIG.rpcUrl || !CONFIG.privateKeySupplier) {
+    console.error('Missing critical environment variables!');
+    process.exit(1);
+}
+
 // 存储演示状态
 const demoState = {
-    accounts: [] as Array<{ name: string; address: Address; privateKey: Hex }>,
+    accounts: [] as Array<{ 
+        name: string; 
+        address: Address; 
+        privateKey: Hex; 
+        type?: 'EOA' | 'AA';
+        ownerAddress?: Address;
+    }>,
     communityAddress: null as Address | null,
     tokenAddress: null as Address | null,
     transactions: [] as Array<{ type: string; hash: Hex; timestamp: number }>
@@ -115,7 +146,8 @@ app.post('/api/generate-accounts', async (req, res) => {
             accounts: demoState.accounts.map(a => ({ 
                 name: a.name, 
                 address: a.address,
-                privateKey: a.privateKey
+                privateKey: a.privateKey,
+                type: a.type || 'EOA'
             })) 
         });
     } catch (e) {
@@ -136,20 +168,43 @@ function saveAccounts(accounts: typeof demoState.accounts) {
 
 app.post('/api/add-account', async (req, res) => {
     try {
-        console.log('➕ Adding new random account...');
+        const { type } = req.body;
+        console.log(`➕ Adding new ${type || 'EOA'} account...`);
+        
         const newPrivateKey = generatePrivateKey();
-        const newAccount = privateKeyToAccount(newPrivateKey);
+        const ownerAccount = privateKeyToAccount(newPrivateKey);
+        
+        let address = ownerAccount.address;
+        let ownerAddress = ownerAccount.address;
+        const finalType = type === 'AA' ? 'AA' : 'EOA';
+
+        if (finalType === 'AA') {
+            const publicClient = createPublicClient({ chain: sepolia, transport: http(RPC_URL) });
+            const FACTORY_ADDR = (process.env.SIMPLE_ACCOUNT_FACTORY || '0x8B516A71c134a4b5196775e63b944f88Cc637F2b') as Address;
+            
+            // 计算 AA 地址 (salt 为 0n)
+            address = await publicClient.readContract({
+                address: FACTORY_ADDR,
+                abi: SimpleAccountFactoryABI,
+                functionName: 'getAddress',
+                args: [ownerAccount.address, 0n]
+            }) as Address;
+            
+            console.log(`   🔸 Computed AA Address: ${address}`);
+        }
         
         const newAccountData = {
             name: `User ${demoState.accounts.length + 1}`,
             privateKey: newPrivateKey,
-            address: newAccount.address
+            address: address,
+            ownerAddress: ownerAddress,
+            type: finalType
         };
         
-        demoState.accounts.push(newAccountData);
+        demoState.accounts.push(newAccountData as any);
         saveAccounts(demoState.accounts);
         
-        console.log(`   ✅ Created ${newAccountData.name}: ${newAccountData.address}`);
+        console.log(`   ✅ Created ${newAccountData.name} (${finalType}): ${address}`);
         
         res.json({ success: true, account: newAccountData });
     } catch (error) {
@@ -157,6 +212,137 @@ app.post('/api/add-account', async (req, res) => {
         res.status(500).json({ success: false, error: (error as Error).message });
     }
 });
+
+// 查询账户余额
+app.post('/api/get-balances', async (req, res) => {
+    try {
+        const addresses = demoState.accounts.map(acc => acc.address as Address);
+        
+        if (addresses.length === 0) {
+            return res.json({ success: true, balances: [] });
+        }
+
+        const GTOKEN_ADDR = process.env.GTOKEN_ADDR as Address;
+        const APNTS_ADDR = process.env.APNTS_ADDR as Address;
+        
+        const balances = await StateValidator.getAccountBalances({
+            rpcUrl: RPC_URL,
+            chain: sepolia,
+            addresses,
+            gTokenAddress: GTOKEN_ADDR,
+            aPNTsAddress: APNTS_ADDR
+        });
+        
+        // Convert BigInt to string for JSON serialization
+        const serializedBalances = balances.map(b => ({
+            address: b.address,
+            eth: b.eth.toString(),
+            gToken: b.gToken.toString(),
+            aPNTs: b.aPNTs.toString(),
+            xPNTs: b.xPNTs.toString()
+        }));
+        
+        res.json({ success: true, balances: serializedBalances });
+    } catch (error: any) {
+        console.error('Error fetching balances:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// 批量查询社区状态
+app.post('/api/get-communities', async (req, res) => {
+    try {
+        const REGISTRY_ADDR = (process.env.REGISTRY_ADDR || process.env.REGISTRY_ADDRESS) as Address;
+        const XPNTS_FACTORY_ADDR = (process.env.XPNTS_FACTORY_ADDR || process.env.XPNTS_FACTORY_ADDRESS) as Address;
+
+        const communityClient = createCommunityClient({
+            chain: sepolia,
+            transport: http(RPC_URL),
+            addresses: CONFIG.addresses
+        });
+
+        // 从 Registry 获取所有拥有 COMMUNITY 角色的地址
+        const publicClient = createPublicClient({ chain: sepolia, transport: http(RPC_URL) });
+        const members = await publicClient.readContract({
+            address: REGISTRY_ADDR,
+            abi: RegistryABI,
+            functionName: 'getRoleMembers',
+            args: [RoleIds.COMMUNITY]
+        }) as Address[];
+
+        console.log(`\n🔍 Found ${members.length} communities on chain:`, members);
+
+        const communities = await Promise.all(
+            members.map(async (address) => {
+                const info = await communityClient.getCommunityInfo(address);
+                const localAccount = demoState.accounts.find(a => a.address.toLowerCase() === address.toLowerCase());
+                return {
+                    // Admin Name: prefer local account name (e.g. "Alice"), fallback to Community Name, then Unknown
+                    accountName: localAccount ? localAccount.name : (info.communityData?.name || 'Unknown Community'),
+                    accountAddress: address,
+                    hasRole: info.hasRole,
+                    tokenAddress: info.tokenAddress,
+                    communityData: info.communityData
+                };
+            })
+        );
+
+        res.json({ success: true, communities });
+    } catch (error: any) {
+        console.error('Error fetching communities:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// 批量查询运营商状态
+app.post('/api/get-operators', async (req, res) => {
+    try {
+        const operatorClient = createOperatorClient({
+            chain: sepolia,
+            transport: http(RPC_URL),
+            addresses: CONFIG.addresses
+        });
+
+        // 结合多种角色枚举
+        const publicClient = createPublicClient({ chain: sepolia, transport: http(RPC_URL) });
+        const superMembers = await publicClient.readContract({
+            address: CONFIG.addresses.registry,
+            abi: RegistryABI,
+            functionName: 'getRoleMembers',
+            args: [RoleIds.PAYMASTER_SUPER]
+        }) as Address[];
+
+        const aoaMembers = await publicClient.readContract({
+            address: CONFIG.addresses.registry,
+            abi: RegistryABI,
+            functionName: 'getRoleMembers',
+            args: [RoleIds.PAYMASTER_AOA]
+        }) as Address[];
+
+        const allMembers = Array.from(new Set([...superMembers, ...aoaMembers]));
+
+        const operators = await Promise.all(
+            allMembers.map(async (address) => {
+                const status = await operatorClient.getOperatorStatus(address);
+                const localAccount = demoState.accounts.find(a => a.address.toLowerCase() === address.toLowerCase());
+                return {
+                    accountName: localAccount ? localAccount.name : 'External Operator',
+                    accountAddress: address,
+                    type: status.type,
+                    superPaymaster: status.superPaymaster,
+                    paymasterV4: status.paymasterV4
+                };
+            })
+        );
+
+        res.json({ success: true, operators });
+    } catch (error: any) {
+        console.error('Error fetching operators:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// 2. 批量充值 (Supplier 的唯一用途：提供资金)
 
 // 2. 批量充值 (Supplier 的唯一用途：提供资金)
 app.post('/api/fund-accounts', async (req, res) => {
@@ -202,20 +388,20 @@ app.post('/api/fund-accounts', async (req, res) => {
             }
         }
 
-        // 充值 GToken
+        const GTOKEN_ADDR = (process.env.GTOKEN_ADDR || process.env.GTOKEN_ADDRESS) as Address;
+        const targetTokenWei = parseEther(tokenAmount || '100');
+
         console.log('\n   🪙 Funding GToken...');
         const tokenErrors = [];
         for (let i = 0; i < demoState.accounts.length; i++) {
             const account = demoState.accounts[i];
 
-            // Check current GToken balance
             const currentGToken = await publicClient.readContract({
-                address: process.env.GTOKEN_ADDR as Address,
+                address: GTOKEN_ADDR,
                 abi: erc20Abi,
                 functionName: 'balanceOf',
                 args: [account.address]
             }) as bigint;
-            const targetTokenWei = parseEther(tokenAmount || '100');
 
             if (currentGToken >= targetTokenWei) {
                 console.log(`      [${i + 1}/${demoState.accounts.length}] Skipping ${account.name}: has ${currentGToken} GToken (Target: ${targetTokenWei})`);
@@ -229,7 +415,7 @@ app.post('/api/fund-accounts', async (req, res) => {
                 chain: sepolia,
                 supplierKey: SUPPLIER_KEY,
                 targetAddress: account.address,
-                tokenAddress: process.env.GTOKEN_ADDR as Address,
+                tokenAddress: GTOKEN_ADDR,
                 amount: tokenAmount || '100'
             });
             
@@ -285,32 +471,42 @@ app.post('/api/launch-community', async (req, res) => {
         console.log(`   👤 Community Admin: ${selectedAccount.name} (${account.address})`);
         console.log(`   📝 Community Name: ${communityName || 'DemoDAO'}`);
 
-        // 检查账户是否已有 COMMUNITY 角色
+        const REGISTRY_ADDR = (process.env.REGISTRY_ADDR || process.env.REGISTRY_ADDRESS) as Address;
+        const XPNTS_FACTORY_ADDR = (process.env.XPNTS_FACTORY_ADDR || process.env.XPNTS_FACTORY_ADDRESS) as Address;
+        const GTOKEN_ADDR = (process.env.GTOKEN_ADDR || process.env.GTOKEN_ADDRESS) as Address;
+        const STAKING_ADDR = (process.env.STAKING_ADDR || process.env.STAKING_ADDRESS) as Address;
+
         const publicClient = createPublicClient({ chain: sepolia, transport: http(RPC_URL) });
-        const COMMUNITY_ROLE_ID = '0xe94d78b6d8fb99b2c21131eb4552924a60f564d8515a3cc90ef300fc9735c074' as Hex;
-        
         const hasRole = await publicClient.readContract({
-            address: process.env.REGISTRY_ADDR as Address,
+            address: REGISTRY_ADDR,
             abi: RegistryABI,
             functionName: 'hasRole',
-            args: [COMMUNITY_ROLE_ID, account.address]
+            args: [RoleIds.COMMUNITY, account.address]
         });
-
-        if (hasRole) {
-            console.log(`   ℹ️  ${selectedAccount.name} already has COMMUNITY role. Proceeding to recover/update...`);
-        }
 
         const client = createCommunityClient({
             chain: sepolia,
             transport: http(RPC_URL),
             account,
             addresses: {
-                registry: process.env.REGISTRY_ADDR as Address,
-                gTokenStaking: process.env.STAKING_ADDR as Address,
-                xPNTsFactory: process.env.XPNTS_FACTORY_ADDR as Address,
-                gToken: process.env.GTOKEN_ADDR as Address
+                registry: REGISTRY_ADDR,
+                gTokenStaking: STAKING_ADDR,
+                xPNTsFactory: XPNTS_FACTORY_ADDR,
+                gToken: GTOKEN_ADDR
             }
         });
+
+        if (hasRole) {
+            console.log(`   ℹ️  Account ${account.address} already has COMMUNITY role.`);
+            const info = await client.getCommunityInfo(account.address);
+            return res.json({ 
+                success: true, 
+                communityAddress: account.address,
+                tokenAddress: info.tokenAddress,
+                transactions: [],
+                message: 'Already registered'
+            });
+        }
 
         console.log('   🚀 Calling launch()...');
         
@@ -349,11 +545,11 @@ app.post('/api/launch-community', async (req, res) => {
         }
 
         demoState.communityAddress = account.address;
-        demoState.tokenAddress = result.tokenAddress || ('0x0000000000000000000000000000000000000000' as Address);
+        demoState.tokenAddress = (result as any).tokenAddress || ('0x0000000000000000000000000000000000000000' as Address);
         
-        const txs = result.txs || [];
+        const txs = (result as any).txs || [];
         if (txs.length > 0) {
-            demoState.transactions.push(...txs.map(hash => ({ type: 'Community Launch', hash, timestamp: Date.now() })));
+            demoState.transactions.push(...txs.map((hash: Hex) => ({ type: 'Community Launch', hash, timestamp: Date.now() })));
         }
 
         console.log(`✅ Community launched!`);
@@ -377,34 +573,41 @@ app.post('/api/launch-community', async (req, res) => {
 app.post('/api/setup-operator', async (req, res) => {
     try {
         console.log('\n⚙️ Setting up operator...');
-        const { accountIndex } = req.body;
+        const { accountIndex, type } = req.body;
         const account = privateKeyToAccount(demoState.accounts[accountIndex || 1].privateKey);
 
         console.log(`   Operator: ${demoState.accounts[accountIndex || 1].name} (${account.address})`);
+        console.log(`   Type: ${type || 'super'}`);
 
-        const client = createOperatorClient({
+        const operatorClient = createOperatorClient({
             chain: sepolia,
             transport: http(RPC_URL),
             account,
             addresses: {
-                registry: process.env.REGISTRY_ADDR as Address,
-                staking: process.env.STAKING_ADDR as Address,
-                superPaymaster: process.env.SUPER_PAYMASTER as Address,
-                gtoken: process.env.GTOKEN_ADDR as Address
+                registry: (process.env.REGISTRY_ADDR || process.env.REGISTRY_ADDRESS) as Address,
+                gTokenStaking: (process.env.STAKING_ADDR || process.env.STAKING_ADDRESS) as Address,
+                gToken: (process.env.GTOKEN_ADDR || process.env.GTOKEN_ADDRESS) as Address,
+                superPaymaster: (process.env.SUPER_PAYMASTER || process.env.SUPER_PAYMASTER_ADDR) as Address,
+                aPNTs: (process.env.APNTS_ADDR || process.env.APNTS_ADDRESS) as Address,
+                paymasterFactory: (process.env.PAYMASTER_FACTORY_ADDR || process.env.PAYMASTER_FACTORY_ADDRESS) as Address
             }
         });
 
-        console.log('   🔧 Calling onboardOperator()...');
-        const result = await client.onboardOperator({
-            stakeAmount: parseEther('50'),
-            depositAmount: parseEther('0'),
-            roleId: RoleIds.PAYMASTER_SUPER,
-            roleData: '0x' as Hex
-        });
+        console.log(`   🔧 Processing ${type || 'super'} setup...`);
+        let txs: Hex[] = [];
+        if (type === 'v4') {
+            const tx = await operatorClient.deployPaymasterV4();
+            txs = [tx];
+        } else {
+            txs = await operatorClient.onboardOperator({
+                stakeAmount: parseEther('50'),
+                depositAmount: parseEther('0'),
+                roleId: RoleIds.PAYMASTER_SUPER
+            });
+        }
 
-        const txs = result.txs || [];
         if (txs.length > 0) {
-            demoState.transactions.push(...txs.map(hash => ({ type: 'Operator Setup', hash, timestamp: Date.now() })));
+            demoState.transactions.push(...txs.map((hash: Hex) => ({ type: 'Operator Setup', hash, timestamp: Date.now() })));
         }
 
         console.log(`✅ Operator setup complete!`);
@@ -417,24 +620,112 @@ app.post('/api/setup-operator', async (req, res) => {
     }
 });
 
-// 5. 用户入驻
 app.post('/api/onboard-user', async (req, res) => {
     try {
         const { accountIndex } = req.body;
-        const account = privateKeyToAccount(demoState.accounts[accountIndex || 2].privateKey);
+        const accountData = demoState.accounts[accountIndex || 2];
+        const account = privateKeyToAccount(accountData.privateKey);
 
-        if (!demoState.communityAddress) {
-            return res.status(400).json({ success: false, error: 'Community not launched yet' });
+        const REGISTRY_ADDR = (process.env.REGISTRY_ADDR || process.env.REGISTRY_ADDRESS) as Address;
+        const SUPER_PAYMASTER_ADDR = (process.env.SUPER_PAYMASTER || process.env.SUPER_PAYMASTER_ADDR) as Address;
+        const FACTORY_ADDR = (process.env.SIMPLE_ACCOUNT_FACTORY || '0x8B516A71c134a4b5196775e63b944f88Cc637F2b') as Address;
+        const GTOKEN_ADDR = (process.env.GTOKEN_ADDR || process.env.GTOKEN_ADDRESS) as Address;
+        const STAKING_ADDR = (process.env.STAKING_ADDR || process.env.STAKING_ADDRESS) as Address;
+        const XPNTS_FACTORY_ADDR = (process.env.XPNTS_FACTORY_ADDR || process.env.XPNTS_FACTORY_ADDRESS) as Address;
+
+        if (!demoState.communityAddress || demoState.communityAddress === '0x0000000000000000000000000000000000000000') {
+             demoState.communityAddress = (process.env.COMMUNITY_ADDR || process.env.COMMUNITY_ADDRESS) as Address;
+             if (!demoState.communityAddress) {
+                 return res.status(400).json({ success: false, error: 'Community not launched or configured' });
+             }
+        }
+
+        const publicClient = createPublicClient({ chain: sepolia, transport: http(RPC_URL) });
+        const walletClient = createWalletClient({ account, chain: sepolia, transport: http(RPC_URL) });
+
+        // --- 核心修复: 自动资助 ETH (用于 AA 部署和交易) ---
+        const ethBalance = await publicClient.getBalance({ address: account.address });
+        if (ethBalance < parseEther('0.02')) {
+            console.log(`   💰 Funding ETH to user ${account.address}...`);
+            const supplierClient = createWalletClient({ account: privateKeyToAccount(SUPPLIER_KEY), chain: sepolia, transport: http(RPC_URL) });
+            const fundEthTx = await supplierClient.sendTransaction({
+                to: account.address,
+                value: parseEther('0.02')
+            });
+            await publicClient.waitForTransactionReceipt({ hash: fundEthTx });
+        }
+        
+        // 检查是否已有角色
+        const hasRole = await publicClient.readContract({
+            address: REGISTRY_ADDR,
+            abi: RegistryABI,
+            functionName: 'hasRole',
+            args: [RoleIds.ENDUSER, account.address]
+        });
+        if (hasRole) {
+             return res.json({ success: true, message: 'Already an end user' });
+        }
+
+        let deployTx: Hash | null = null;
+        // 如果是 AA 账户且未部署，则执行部署
+        if (accountData.type === 'AA') {
+            const byteCode = await publicClient.getBytecode({ address: accountData.address });
+            if (!byteCode || byteCode === '0x') {
+                deployTx = await walletClient.writeContract({
+                    address: FACTORY_ADDR,
+                    abi: SimpleAccountFactoryABI,
+                    functionName: 'createAccount',
+                    args: [account.address, 0n]
+                });
+                await publicClient.waitForTransactionReceipt({ hash: deployTx });
+            }
+        }
+
+        // --- 核心修复: GToken 质押准备 ---
+        console.log(`   🛠  Preparing GToken for onboarding...`);
+        let balance = await publicClient.readContract({
+            address: GTOKEN_ADDR,
+            abi: erc20Abi,
+            functionName: 'balanceOf',
+            args: [account.address]
+        }) as bigint;
+
+        const minStakeRequired = parseEther('0.35'); // EndUser min stake (0.3) + burn (0.05)
+        if (balance < minStakeRequired) {
+            console.log(`   💰 Funding GToken to user...`);
+            const supplierClient = createWalletClient({ account: privateKeyToAccount(SUPPLIER_KEY), chain: sepolia, transport: http(RPC_URL) });
+            const fundTx = await supplierClient.writeContract({
+                address: GTOKEN_ADDR,
+                abi: erc20Abi,
+                functionName: 'transfer',
+                args: [account.address, minStakeRequired]
+            });
+            await publicClient.waitForTransactionReceipt({ hash: fundTx });
+        }
+
+        const allowance = await publicClient.readContract({
+            address: GTOKEN_ADDR,
+            abi: erc20Abi,
+            functionName: 'allowance',
+            args: [account.address, STAKING_ADDR]
+        }) as bigint;
+
+        if (allowance < minStakeRequired) {
+            console.log(`   🔓 Approving Staking contract...`);
+            const appTx = await walletClient.writeContract({
+                address: GTOKEN_ADDR,
+                abi: erc20Abi,
+                functionName: 'approve',
+                args: [STAKING_ADDR, parseEther('1000')]
+            });
+            await publicClient.waitForTransactionReceipt({ hash: appTx });
         }
 
         const client = createEndUserClient({
             chain: sepolia,
             transport: http(RPC_URL),
             account,
-            addresses: {
-                registry: process.env.REGISTRY_ADDR as Address,
-                superPaymaster: process.env.SUPER_PAYMASTER as Address
-            }
+            addresses: CONFIG.addresses
         });
 
         const roleData = RoleDataFactory.endUser({
@@ -466,11 +757,16 @@ app.post('/api/benchmark', async (req, res) => {
         const account = privateKeyToAccount(demoState.accounts[0].privateKey);
 
         // EOA 转账基准
-        const eoaHash = await publicClient.sendTransaction({
-            account,
+        const walletClient = createWalletClient({ 
+            account, 
+            chain: sepolia, 
+            transport: http(RPC_URL) 
+        });
+
+        const eoaHash = await walletClient.sendTransaction({
             to: demoState.accounts[1].address,
             value: 1n
-        } as any);
+        });
 
         const eoaReceipt = await publicClient.waitForTransactionReceipt({ hash: eoaHash });
 
@@ -490,7 +786,11 @@ app.post('/api/benchmark', async (req, res) => {
 // 7. 获取状态
 app.get('/api/state', (req, res) => {
     res.json({
-        accounts: demoState.accounts.map(a => ({ name: a.name, address: a.address })),
+        accounts: demoState.accounts.map(a => ({ 
+            name: a.name, 
+            address: a.address,
+            type: a.type || 'EOA'
+        })),
         communityAddress: demoState.communityAddress,
         tokenAddress: demoState.tokenAddress,
         transactions: demoState.transactions
