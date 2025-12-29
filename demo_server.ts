@@ -210,21 +210,45 @@ app.post('/api/launch-community', async (req, res) => {
         });
 
         console.log('   🚀 Calling launch()...');
-        const result = await client.launch({
-            name: communityName || 'DemoDAO',
-            tokenName: 'Demo Token',
-            tokenSymbol: 'DEMO'
-        });
-
-        console.log('   📦 Launch result:', JSON.stringify(result, null, 2));
-        console.log('   📦 Result type:', typeof result);
-        console.log('   📦 Result keys:', Object.keys(result || {}));
+        
+        let result;
+        try {
+            result = await client.launch({
+                name: communityName || 'DemoDAO',
+                tokenName: 'Demo Token',
+                tokenSymbol: 'DEMO'
+            });
+            
+            console.log('   ✅ Launch completed successfully');
+            console.log('   📦 Result:', JSON.stringify(result, null, 2));
+            
+        } catch (launchError: any) {
+            console.error('   ❌ Launch error caught:', launchError);
+            console.error('   📋 Error details:', {
+                message: launchError.message,
+                stack: launchError.stack,
+                cause: launchError.cause,
+                errorName: launchError.errorName
+            });
+            
+            // 重新抛出带有更多上下文的错误
+            throw new Error(`Failed to launch community: ${launchError.message}`);
+        }
+        
+        // 验证 result 结构
+        if (!result) {
+            throw new Error('Launch returned undefined result');
+        }
+        
+        if (!result.txs) {
+            console.warn('   ⚠️  Result missing txs property:', result);
+            result.txs = [];
+        }
 
         demoState.communityAddress = account.address;
-        demoState.tokenAddress = result?.tokenAddress || ('0x0000000000000000000000000000000000000000' as Address);
+        demoState.tokenAddress = result.tokenAddress || ('0x0000000000000000000000000000000000000000' as Address);
         
-        // 安全处理 txs（可能为 undefined）
-        const txs = result?.txs || [];
+        const txs = result.txs || [];
         if (txs.length > 0) {
             demoState.transactions.push(...txs.map(hash => ({ type: 'Community Launch', hash, timestamp: Date.now() })));
         }
