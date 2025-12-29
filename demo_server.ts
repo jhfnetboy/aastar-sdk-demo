@@ -9,10 +9,24 @@ import * as fs from 'fs';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
-import { http, parseEther, createPublicClient, createWalletClient, erc20Abi, type Hex, type Address, type Hash } from 'viem';
+import { 
+    createPublicClient, 
+    createWalletClient, 
+    http, 
+    parseEther, 
+    formatEther, 
+    type Account, 
+    type Hash, 
+    type Address,
+    getContract,
+    parseAbiItem,
+    parseAbi,
+    publicActions,
+    erc20Abi,
+    type Hex
+} from 'viem';
 import { privateKeyToAccount, generatePrivateKey } from 'viem/accounts';
 import { sepolia } from 'viem/chains';
-import { RegistryABI } from '@aastar/core';
 import { 
     KeyManager, 
     FundingManager, 
@@ -22,12 +36,113 @@ import {
     createEndUserClient,
     RoleIds,
     RoleDataFactory,
+    getAAAddress
+} from '@aastar/sdk';
+import { 
+    RegistryABI, 
     SimpleAccountFactoryABI
-} from '../aastar-sdk/packages/sdk/src/index.js';
+} from '@aastar/core';
 
+// ABI Definitions (Inline)
+const PaymasterFactoryPartialABI = [
+    {
+        name: 'getPaymasterList',
+        type: 'function',
+        stateMutability: 'view',
+        inputs: [
+            { name: 'offset', type: 'uint256' },
+            { name: 'limit', type: 'uint256' }
+        ],
+        outputs: [{ name: 'paymasters', type: 'address[]' }]
+    },
+    {
+        name: 'getOperatorByPaymaster',
+        type: 'function',
+        stateMutability: 'view',
+        inputs: [{ name: 'paymaster', type: 'address' }],
+        outputs: [{ name: 'operator', type: 'address' }]
+    },
+    {
+        name: 'paymasterByOperator',
+        type: 'function',
+        stateMutability: 'view',
+        inputs: [{ name: 'operator', type: 'address' }],
+        outputs: [{ name: 'paymaster', type: 'address' }]
+    }
+] as const;
+
+const SuperPaymasterPartialABI = [
+    {
+        name: 'APNTS_TOKEN',
+        type: 'function',
+        stateMutability: 'view',
+        inputs: [],
+        outputs: [{ name: '', type: 'address' }]
+    },
+    {
+        name: 'operators',
+        type: 'function',
+        stateMutability: 'view',
+        inputs: [{ name: 'operator', type: 'address' }],
+        outputs: [
+            { name: 'aPNTsBalance', type: 'uint128' },
+            { name: 'exchangeRate', type: 'uint96' },
+            { name: 'isConfigured', type: 'bool' },
+            { name: 'isPaused', type: 'bool' },
+            { name: 'xPNTsToken', type: 'address' },
+            { name: 'reputation', type: 'uint32' },
+            { name: 'treasury', type: 'address' },
+            { name: 'totalSpent', type: 'uint256' },
+            { name: 'totalTxSponsored', type: 'uint256' }
+        ]
+    }
+] as const;
+
+const EntryPointABI = [{
+    type: 'function',
+    name: 'getDepositInfo',
+    stateMutability: 'view',
+    inputs: [{ type: 'address' }],
+    outputs: [{ type: 'tuple', components: [{ type: 'uint256', name: 'deposit' }, { type: 'bool', name: 'staked' }, { type: 'uint256', name: 'stake' }, { type: 'uint32', name: 'unstakeDelaySec' }, { type: 'uint48', name: 'withdrawTime' }] }]
+}];
+
+// Load env
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.join(__dirname, '.env.sepolia') });
+
+// Configuration
+const RPC_URL = process.env.SEPOLIA_RPC_URL || process.env.RPC_URL || 'https://rpc.sepolia.org';
+const SUPPLIER_KEY = process.env.PRIVATE_KEY_SUPPLIER as Hash;
+
+const CONFIG = {
+    rpcUrl: RPC_URL,
+    addresses: {
+        registry: process.env.REGISTRY_ADDR as Address,
+        paymasterFactory: process.env.PAYMASTER_FACTORY_ADDR as Address,
+        simpleAccountFactory: process.env.SIMPLE_ACCOUNT_FACTORY_ADDR as Address,
+        gToken: (process.env.GTOKEN_ADDR || process.env.GTOKEN_ADDRESS) as Address,
+        gTokenStaking: process.env.GTOKEN_STAKING_ADDR as Address,
+        superPaymaster: (process.env.SUPER_PAYMASTER || process.env.SUPER_PAYMASTER_ADDRESS) as Address,
+        xPNTsFactory: process.env.XPNTS_FACTORY_ADDR as Address,
+        apntsToken: (process.env.APNTS_ADDR || '0xD348d910f93b60083bF137803FAe5AF25E14B69d') as Address
+    }
+};
+
+const REGISTRY_ADDR = CONFIG.addresses.registry;
+const FACTORY_ADDR = CONFIG.addresses.simpleAccountFactory;
+const PAYMASTER_FACTORY = CONFIG.addresses.paymasterFactory;
+const GTOKEN_ADDR = CONFIG.addresses.gToken;
+const STAKING_ADDR = CONFIG.addresses.gTokenStaking;
+const APNTS_ADDR = CONFIG.addresses.apntsToken;
+const ENTRYPOINT_ADDR = '0x0000000071727De22E5E9d8BAf0edAc6f37da032';
+
+console.log('--- Server Configuration ---');
+console.log('Registry:', REGISTRY_ADDR);
+console.log('Paymaster Factory:', PAYMASTER_FACTORY);
+console.log('Supplier Key used for funding');
+console.log('----------------------------');
+
 
 const app = express();
 app.use(cors());
@@ -36,30 +151,6 @@ app.use(express.static(path.join(__dirname, 'demo_public')));
 
 // BigInt JSON 序列化支持
 (BigInt.prototype as any).toJSON = function() { return this.toString() };
-
-const RPC_URL = process.env.SEPOLIA_RPC_URL!;
-const SUPPLIER_KEY = process.env.PRIVATE_KEY_SUPPLIER as Hex;
-
-// 统一配置中心 - 严格对应 .env.sepolia
-const CONFIG = {
-    rpcUrl: process.env.SEPOLIA_RPC_URL,
-    privateKeySupplier: process.env.PRIVATE_KEY_SUPPLIER,
-    addresses: {
-        registry: process.env.REGISTRY_ADDR as Address,
-        gTokenStaking: process.env.STAKING_ADDR as Address,
-        superPaymaster: process.env.SUPER_PAYMASTER as Address,
-        gToken: process.env.GTOKEN_ADDR as Address,
-        xPNTsFactory: process.env.XPNTS_FACTORY_ADDR as Address,
-        paymasterFactory: process.env.PAYMASTER_FACTORY_ADDR as Address,
-        mySBT: process.env.MYSBT_ADDR as Address,
-        simpleAccountFactory: process.env.SIMPLE_ACCOUNT_FACTORY as Address
-    }
-};
-
-if (!CONFIG.rpcUrl || !CONFIG.privateKeySupplier) {
-    console.error('Missing critical environment variables!');
-    process.exit(1);
-}
 
 // 存储演示状态
 const demoState = {
@@ -213,6 +304,19 @@ app.post('/api/add-account', async (req, res) => {
     }
 });
 
+// 获取系统配置 (Metadata)
+app.get('/api/config', (req, res) => {
+    res.json({
+        success: true,
+        network: 'Sepolia',
+        config: {
+            rpcUrl: RPC_URL,
+            contracts: CONFIG.addresses as any,
+            supplier: privateKeyToAccount(SUPPLIER_KEY).address
+        }
+    });
+});
+
 // 查询账户余额
 app.post('/api/get-balances', async (req, res) => {
     try {
@@ -294,46 +398,211 @@ app.post('/api/get-communities', async (req, res) => {
     }
 });
 
+
+// 全网运营商与 SuperPaymaster 状态查询
+app.post('/api/get-network-operators', async (req, res) => {
+    try {
+        const PAYMASTER_FACTORY = CONFIG.addresses.paymasterFactory;
+        const REGISTRY_ADDR = CONFIG.addresses.registry;
+        const SUPER_PAYMASTER_ADDR = CONFIG.addresses.superPaymaster;
+
+        const publicClient = createPublicClient({ chain: sepolia, transport: http(RPC_URL) });
+
+        // 1. Fetch V4 Paymasters from Factory
+        // 1. Fetch V4 Paymasters from Factory using getPaymasterList (API)
+        const v4s: any[] = [];
+        try {
+            console.log(`[DEBUG] Fetching V4 Paymasters from Factory: ${PAYMASTER_FACTORY}`);
+            const paymasters = await publicClient.readContract({
+                address: PAYMASTER_FACTORY,
+                abi: PaymasterFactoryPartialABI,
+                functionName: 'getPaymasterList',
+                args: [0n, 50n] // Fetch first 50
+            }) as Address[];
+            
+            console.log(`[DEBUG] Found ${paymasters.length} paymasters via getPaymasterList.`);
+
+            const accounts = demoState.accounts; 
+
+            await Promise.all(paymasters.map(async (paymasterAddr) => {
+                try {
+                    // Get Operator
+                    const operator = await publicClient.readContract({
+                        address: PAYMASTER_FACTORY,
+                        abi: PaymasterFactoryPartialABI,
+                        functionName: 'getOperatorByPaymaster',
+                        args: [paymasterAddr]
+                    }) as Address;
+                    
+                    console.log(`[DEBUG] Paymaster ${paymasterAddr} -> Operator ${operator}`);
+
+                    // Fetch Paymaster Details
+                    // Get balance from EntryPoint
+                     const depositInfo = await publicClient.readContract({
+                        address: ENTRYPOINT_ADDR,
+                        abi: EntryPointABI,
+                        functionName: 'getDepositInfo',
+                        args: [paymasterAddr]
+                    }) as { deposit: bigint };
+                    const balance = depositInfo.deposit;
+
+                     // Try to get supported tokens
+                    let supportedTokens: any[] = [];
+                    try {
+                        supportedTokens = await publicClient.readContract({
+                            address: paymasterAddr,
+                            abi: parseAbiItem('function getSupportedGasTokens() view returns (address[])'),
+                            functionName: 'getSupportedGasTokens'
+                        }) as any[];
+                    } catch (e) {}
+
+                    // Get Version if possible
+                    let version = 'v4';
+                    try {
+                        version = await publicClient.readContract({
+                            address: paymasterAddr,
+                            abi: parseAbiItem('function VERSION() view returns (string)'),
+                            functionName: 'VERSION'
+                        }) as string;
+                    } catch (e) {}
+
+                    v4s.push({
+                        address: paymasterAddr,
+                        version: version,
+                        operator: operator,
+                        operatorName: accounts.find(a => a.address.toLowerCase() === operator.toLowerCase())?.name,
+                        balance: balance.toString(),
+                        supportedTokens: supportedTokens
+                    });
+                } catch (innerErr) {
+                    console.warn(`Error fetching details for paymaster ${paymasterAddr}:`, innerErr);
+                }
+            }));
+            console.log(`[DEBUG] Total V4s processed: ${v4s.length}`);
+        } catch (e: any) {
+            console.error('⚠️ Failed to fetch V4 Paymaster list via API (getPaymasterList):', e.message);
+        }
+
+        // 2. Fetch SuperPaymaster Operators from Registry
+        const superMembers = await publicClient.readContract({
+            address: REGISTRY_ADDR,
+            abi: RegistryABI,
+            functionName: 'getRoleMembers',
+            args: [RoleIds.PAYMASTER_SUPER]
+        }) as Address[];
+        
+        // Fetch global settings
+        let apntsToken = '0x0000000000000000000000000000000000000000';
+        try {
+            apntsToken = await publicClient.readContract({
+                address: SUPER_PAYMASTER_ADDR,
+                abi: SuperPaymasterPartialABI,
+                functionName: 'APNTS_TOKEN'
+            }) as Address;
+        } catch (e) {
+            console.error('Failed to fetch APNTS_TOKEN', e);
+        }
+
+        const superOperators = await Promise.all(superMembers.map(async (addr) => {
+            const local = demoState.accounts.find(a => a.address.toLowerCase() === addr.toLowerCase());
+            
+            // Get stats
+            let balance = 0n;
+            let totalSpent = 0n;
+            try {
+                const stats = await publicClient.readContract({
+                    address: SUPER_PAYMASTER_ADDR,
+                    abi: SuperPaymasterPartialABI,
+                    functionName: 'operators',
+                    args: [addr]
+                }) as any;
+                // viem returns array for struct/tuple output? No, named outputs usually object if compiled with ABI that has names?
+                // Actually with 'readContract' and ABI with named outputs, it often returns array depending on version/config.
+                // Let's assume array indexing based on ABI order just to be safe: 
+                // [aPNTsBalance, exchangeRate, isConfigured, isPaused, xPNTsToken, reputation, treasury, totalSpent, totalTxSponsored]
+                
+                // If viem returns array (common):
+                if (Array.isArray(stats)) {
+                    balance = stats[0];
+                    totalSpent = stats[7];
+                } else {
+                    balance = stats.aPNTsBalance;
+                    totalSpent = stats.totalSpent;
+                }
+            } catch (e) {}
+
+            return {
+                type: 'super',
+                address: SUPER_PAYMASTER_ADDR,
+                operator: addr,
+                operatorName: local ? local.name : null,
+                balance: balance.toString(),
+                totalSpent: totalSpent.toString()
+            };
+        }));
+
+        res.json({ 
+            success: true, 
+            v4: v4s,
+            super: superOperators,
+            constants: {
+                apntsToken
+            }
+        });
+    } catch (error: any) {
+        console.error('Error fetching network operators:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
 // 批量查询运营商状态
 app.post('/api/get-operators', async (req, res) => {
     try {
+        // Instead of fetching from Registry (which only knows Super/AOA),
+        // we should iterate over our LOCAL accounts to check their status on chain.
+        // This ensures Alice (who might have V4 but no Registry role) is checked.
+        
         const operatorClient = createOperatorClient({
             chain: sepolia,
             transport: http(RPC_URL),
             addresses: CONFIG.addresses
         });
 
-        // 结合多种角色枚举
-        const publicClient = createPublicClient({ chain: sepolia, transport: http(RPC_URL) });
-        const superMembers = await publicClient.readContract({
-            address: CONFIG.addresses.registry,
-            abi: RegistryABI,
-            functionName: 'getRoleMembers',
-            args: [RoleIds.PAYMASTER_SUPER]
-        }) as Address[];
-
-        const aoaMembers = await publicClient.readContract({
-            address: CONFIG.addresses.registry,
-            abi: RegistryABI,
-            functionName: 'getRoleMembers',
-            args: [RoleIds.PAYMASTER_AOA]
-        }) as Address[];
-
-        const allMembers = Array.from(new Set([...superMembers, ...aoaMembers]));
-
         const operators = await Promise.all(
-            allMembers.map(async (address) => {
-                const status = await operatorClient.getOperatorStatus(address);
-                const localAccount = demoState.accounts.find(a => a.address.toLowerCase() === address.toLowerCase());
+            demoState.accounts.map(async (account) => {
+                // 1. Check if they have a V4 Paymaster via Factory (using our new ABI method)
+                const factoryAddr = (process.env.PAYMASTER_FACTORY_ADDR || process.env.PAYMASTER_FACTORY_ADDRESS) as Address;
+                let v4Address: Address | null = null;
+                try {
+                    const pm = await publicClient.readContract({
+                        address: factoryAddr,
+                        abi: PaymasterFactoryPartialABI,
+                        functionName: 'paymasterByOperator',
+                        args: [account.address]
+                    }) as Address;
+                    if(pm && pm !== '0x0000000000000000000000000000000000000000') v4Address = pm;
+                } catch(e) {}
+
+                // 2. Check SuperPaymaster Status via OperatorClient (or manual check)
+                let superStatus = null;
+                try {
+                     const status = await operatorClient.getOperatorStatus(account.address);
+                     // If they have superPaymaster data
+                     if (status.superPaymaster && status.superPaymaster.isConfigured) {
+                         superStatus = status.superPaymaster;
+                     }
+                } catch(e) {}
+
                 return {
-                    accountName: localAccount ? localAccount.name : 'External Operator',
-                    accountAddress: address,
-                    type: status.type,
-                    superPaymaster: status.superPaymaster,
-                    paymasterV4: status.paymasterV4
+                    accountName: account.name,
+                    accountAddress: account.address,
+                    type: (v4Address && superStatus) ? 'Hybrid' : (v4Address ? 'V4 Only' : (superStatus ? 'Super Only' : 'None')),
+                    superPaymaster: superStatus,
+                    paymasterV4: v4Address ? { address: v4Address, balance: '0', version: 'v4' } : null
                 };
             })
         );
+
 
         res.json({ success: true, operators });
     } catch (error: any) {
@@ -345,116 +614,93 @@ app.post('/api/get-operators', async (req, res) => {
 // 2. 批量充值 (Supplier 的唯一用途：提供资金)
 
 // 2. 批量充值 (Supplier 的唯一用途：提供资金)
+// 2. 批量充值 (Smart Funding)
 app.post('/api/fund-accounts', async (req, res) => {
     try {
-        console.log('\n💰 Funding accounts (Supplier 提供资金)...');
+        console.log('\n💰 Funding accounts (Smart Mode)...');
         const { ethAmount, tokenAmount } = req.body;
+        
+        // Thresholds
+        // ETH: check < 0.05, target 0.1 (or user param)
+        // GToken: check < 100, target 1000 (or user param)
+        // aPNTs: check < 1000, target 10000
+        const ETH_THRESHOLD = parseEther('0.05');
+        const ETH_TARGET = parseEther('0.1');
+        const GTOKEN_THRESHOLD = parseEther('100');
+        const GTOKEN_TARGET = parseEther('1000');
+        const APNTS_THRESHOLD = parseEther('1000');
+        const APNTS_TARGET = parseEther('10000');
+
         const publicClient = createPublicClient({ chain: sepolia, transport: http(RPC_URL) });
-
-        const supplierAddress = privateKeyToAccount(SUPPLIER_KEY).address;
-        console.log(`   💼 Supplier (资金提供者): ${supplierAddress}`);
-        console.log(`   Target ETH: ${ethAmount || '0.05'} per account`);
-        console.log(`   Target GToken: ${tokenAmount || '100'} per account`);
-
-        // 充值 ETH
-        console.log('\n   📤 Funding ETH...');
-        const ethErrors = [];
-        for (let i = 0; i < demoState.accounts.length; i++) {
-            const account = demoState.accounts[i];
-            
-            // Check current ETH balance
-            const currentEth = await publicClient.getBalance({ address: account.address });
-            const targetEthWei = parseEther(ethAmount || '0.05');
-            
-            if (currentEth >= targetEthWei) {
-                console.log(`      [${i + 1}/${demoState.accounts.length}] Skipping ${account.name}: has ${currentEth} ETH (Target: ${targetEthWei})`);
-                continue;
-            }
-
-            console.log(`      [${i + 1}/${demoState.accounts.length}] Funding ${account.name} (${account.address})...`);
-            
-            const result = await FundingManager.fundWithETH({
-                rpcUrl: RPC_URL,
-                chain: sepolia,
-                supplierKey: SUPPLIER_KEY,
-                targetAddress: account.address,
-                amount: ethAmount || '0.05'
-            });
-            
-            if (!result.success) {
-                const error = `Failed to fund ${account.name} with ETH: ${result.error}`;
-                console.error(`      ❌ ${error}`);
-                ethErrors.push(error);
-            }
-        }
+        const supplier = privateKeyToAccount(SUPPLIER_KEY);
+        const walletClient = createWalletClient({ account: supplier, chain: sepolia, transport: http(RPC_URL) });
 
         const GTOKEN_ADDR = (process.env.GTOKEN_ADDR || process.env.GTOKEN_ADDRESS) as Address;
-        const targetTokenWei = parseEther(tokenAmount || '100');
+        const APNTS_ADDR = (process.env.APNTS_ADDR || '0xD348d910f93b60083bF137803FAe5AF25E14B69d') as Address;
 
-        console.log('\n   🪙 Funding GToken...');
-        const tokenErrors = [];
+        console.log(`   💼 Supplier: ${supplier.address}`);
+
+        const results = [];
+
         for (let i = 0; i < demoState.accounts.length; i++) {
-            const account = demoState.accounts[i];
-
-            const currentGToken = await publicClient.readContract({
-                address: GTOKEN_ADDR,
-                abi: erc20Abi,
-                functionName: 'balanceOf',
-                args: [account.address]
-            }) as bigint;
-
-            if (currentGToken >= targetTokenWei) {
-                console.log(`      [${i + 1}/${demoState.accounts.length}] Skipping ${account.name}: has ${currentGToken} GToken (Target: ${targetTokenWei})`);
-                continue;
+            const acc = demoState.accounts[i];
+            const accAddr = acc.address;
+            const actions = [];
+            
+            // 1. ETH Check
+            const ethBal = await publicClient.getBalance({ address: accAddr });
+            if (ethBal < ETH_THRESHOLD) {
+                const amount = ETH_TARGET - ethBal; 
+                try {
+                    const hash = await walletClient.sendTransaction({ to: accAddr, value: amount });
+                    await publicClient.waitForTransactionReceipt({ hash });
+                    actions.push(`ETH: +${(Number(amount)/1e18).toFixed(3)}`);
+                } catch (e: any) {
+                    console.error(`Failed to fund ETH for ${acc.name}:`, e.message);
+                }
+            } else {
+                actions.push(`ETH: OK`);
             }
 
-            console.log(`      [${i + 1}/${demoState.accounts.length}] Funding ${account.name} with GToken...`);
-            
-            const result = await FundingManager.fundWithToken({
-                rpcUrl: RPC_URL,
-                chain: sepolia,
-                supplierKey: SUPPLIER_KEY,
-                targetAddress: account.address,
-                tokenAddress: GTOKEN_ADDR,
-                amount: tokenAmount || '100'
-            });
-            
-            if (!result.success) {
-                const error = `Failed to fund ${account.name} with GToken: ${result.error}`;
-                console.error(`      ❌ ${error}`);
-                tokenErrors.push(error);
+            // 2. GToken Check
+            try {
+                const gBal = await publicClient.readContract({ address: GTOKEN_ADDR, abi: erc20Abi, functionName: 'balanceOf', args: [accAddr] }) as bigint;
+                if (gBal < GTOKEN_THRESHOLD) {
+                    const amount = GTOKEN_TARGET - gBal;
+                    const hash = await walletClient.writeContract({ address: GTOKEN_ADDR, abi: erc20Abi, functionName: 'transfer', args: [accAddr, amount] });
+                     await publicClient.waitForTransactionReceipt({ hash });
+                    actions.push(`GToken: +${(Number(amount)/1e18).toFixed(0)}`);
+                } else {
+                    actions.push(`GToken: OK`);
+                }
+            } catch (e: any) {
+                 console.error(`Failed to fund GToken for ${acc.name}:`, e.message);
             }
-        }
-        
-        // 如果有任何错误，抛出异常
-        if (ethErrors.length > 0 || tokenErrors.length > 0) {
-            const allErrors = [...ethErrors, ...tokenErrors];
-            throw new Error(`Funding failed:\n${allErrors.join('\n')}`);
-        }
 
-        // 获取最终余额
-        console.log('\n   📊 Final Balances:');
-        const balances = [];
-        for (const account of demoState.accounts) {
-            const ethBal = await publicClient.getBalance({ address: account.address });
-            const tokenBal = await publicClient.readContract({
-                address: process.env.GTOKEN_ADDR as Address,
-                abi: erc20Abi,
-                functionName: 'balanceOf',
-                args: [account.address]
-            }) as bigint;
+            // 3. aPNTs Check
+            if (APNTS_ADDR && APNTS_ADDR !== '0x0000000000000000000000000000000000000000') {
+                try {
+                    const aBal = await publicClient.readContract({ address: APNTS_ADDR, abi: erc20Abi, functionName: 'balanceOf', args: [accAddr] }) as bigint;
+                    if (aBal < APNTS_THRESHOLD) {
+                        const amount = APNTS_TARGET - aBal;
+                         const hash = await walletClient.writeContract({ address: APNTS_ADDR, abi: erc20Abi, functionName: 'transfer', args: [accAddr, amount] });
+                        await publicClient.waitForTransactionReceipt({ hash });
+                        actions.push(`aPNTs: +${(Number(amount)/1e18).toFixed(0)}`);
+                    } else {
+                        actions.push(`aPNTs: OK`);
+                    }
+                } catch (e: any) {
+                    console.error(`Failed to fund aPNTs for ${acc.name}: (Check if Supplier has bal/allowance)`, e.message);
+                }
+            }
 
-            const ethStr = (Number(ethBal) / 1e18).toFixed(4);
-            const tokenStr = (Number(tokenBal) / 1e18).toFixed(2);
-            
-            console.log(`      ${account.name}: ${ethStr} ETH, ${tokenStr} GToken`);
-            balances.push({ name: account.name, eth: ethStr, gtoken: tokenStr });
+            console.log(`      [${i+1}/${demoState.accounts.length}] ${acc.name}: ${actions.join(', ')}`);
+            results.push({ name: acc.name, actions });
         }
 
-        console.log('✅ All accounts funded successfully!');
-
-        res.json({ success: true, message: 'Accounts funded successfully', balances });
-    } catch (error) {
+        console.log('✅ Smart funding complete!');
+        res.json({ success: true, message: 'Smart funding complete', results });
+    } catch (error: any) {
         console.error('❌ Error funding accounts:', error);
         res.status(500).json({ success: false, error: (error as Error).message });
     }
@@ -593,11 +839,28 @@ app.post('/api/setup-operator', async (req, res) => {
             }
         });
 
+        const publicClient = createPublicClient({ chain: sepolia, transport: http(RPC_URL) });
+
         console.log(`   🔧 Processing ${type || 'super'} setup...`);
         let txs: Hex[] = [];
         if (type === 'v4') {
-            const tx = await operatorClient.deployPaymasterV4();
-            txs = [tx];
+            // Check if Paymaster already exists for this operator
+            const factoryAddr = (process.env.PAYMASTER_FACTORY_ADDR || process.env.PAYMASTER_FACTORY_ADDRESS) as Address;
+            const existingPm = await publicClient.readContract({
+                address: factoryAddr,
+                abi: PaymasterFactoryPartialABI,
+                functionName: 'paymasterByOperator',
+                args: [account.address]
+            }) as Address;
+
+            if (existingPm && existingPm !== '0x0000000000000000000000000000000000000000') {
+                console.log(`   ⚠️ Operator already has Paymaster: ${existingPm}. Skipping deployment.`);
+                // We can't return the tx hash of deployment since didn't deploy, but we can treat as success
+                txs = [];
+            } else {
+                const tx = await operatorClient.deployPaymasterV4();
+                txs = [tx];
+            }
         } else {
             txs = await operatorClient.onboardOperator({
                 stakeAmount: parseEther('50'),
@@ -638,6 +901,29 @@ app.post('/api/onboard-user', async (req, res) => {
              if (!demoState.communityAddress) {
                  return res.status(400).json({ success: false, error: 'Community not launched or configured' });
              }
+        }
+
+        console.log(`\n🔍 [Debug] Onboarding Check for ${accountData.name} (${accountData.address})`);
+        console.log(`   Target Community: ${demoState.communityAddress}`);
+
+        // Check if Community has xPNTs Token
+        const factoryAbi = parseAbi(['function getTokenAddress(address) view returns (address)']);
+        let tokenAddr = '0x0000000000000000000000000000000000000000';
+        try {
+            tokenAddr = await publicClient.readContract({
+                address: XPNTS_FACTORY_ADDR,
+                abi: factoryAbi,
+                functionName: 'getTokenAddress',
+                args: [demoState.communityAddress]
+            }) as string;
+            console.log(`   Token Address Found: ${tokenAddr}`);
+        } catch (e: any) {
+            console.error(`   ❌ Failed to query token address: ${e.message}`);
+        }
+
+        if (!tokenAddr || tokenAddr === '0x0000000000000000000000000000000000000000') {
+             console.warn(`   ⚠️ Community ${demoState.communityAddress} has NO xPNTs Token configured.`);
+             return res.status(400).json({ success: false, error: `Community ${demoState.communityAddress} not fully launched (No xPNTs Token). Please deploy token first.` });
         }
 
         const publicClient = createPublicClient({ chain: sepolia, transport: http(RPC_URL) });
@@ -682,17 +968,20 @@ app.post('/api/onboard-user', async (req, res) => {
         }
 
         // --- 核心修复: GToken 质押准备 ---
-        console.log(`   🛠  Preparing GToken for onboarding...`);
+        console.log(`\n🔍 [Debug] Onboarding Check for ${account.name} (${account.address})`);
+        console.log(`   Target Community: ${demoState.communityAddress}`);
+        
         let balance = await publicClient.readContract({
             address: GTOKEN_ADDR,
             abi: erc20Abi,
             functionName: 'balanceOf',
             args: [account.address]
         }) as bigint;
+        console.log(`   GToken Balance: ${(Number(balance)/1e18).toFixed(2)}`);
 
         const minStakeRequired = parseEther('0.35'); // EndUser min stake (0.3) + burn (0.05)
         if (balance < minStakeRequired) {
-            console.log(`   💰 Funding GToken to user...`);
+            console.log(`   ⚠️ Insufficient GToken. Funding from Supplier...`);
             const supplierClient = createWalletClient({ account: privateKeyToAccount(SUPPLIER_KEY), chain: sepolia, transport: http(RPC_URL) });
             const fundTx = await supplierClient.writeContract({
                 address: GTOKEN_ADDR,
@@ -701,6 +990,7 @@ app.post('/api/onboard-user', async (req, res) => {
                 args: [account.address, minStakeRequired]
             });
             await publicClient.waitForTransactionReceipt({ hash: fundTx });
+            console.log(`   ✅ GToken Funded: ${fundTx}`);
         }
 
         const allowance = await publicClient.readContract({
@@ -709,6 +999,7 @@ app.post('/api/onboard-user', async (req, res) => {
             functionName: 'allowance',
             args: [account.address, STAKING_ADDR]
         }) as bigint;
+        console.log(`   Staking Allowance: ${(Number(allowance)/1e18).toFixed(2)}`);
 
         if (allowance < minStakeRequired) {
             console.log(`   🔓 Approving Staking contract...`);
@@ -719,6 +1010,7 @@ app.post('/api/onboard-user', async (req, res) => {
                 args: [STAKING_ADDR, parseEther('1000')]
             });
             await publicClient.waitForTransactionReceipt({ hash: appTx });
+            console.log(`   ✅ Approved: ${appTx}`);
         }
 
         const client = createEndUserClient({
@@ -728,19 +1020,28 @@ app.post('/api/onboard-user', async (req, res) => {
             addresses: CONFIG.addresses
         });
 
+        const targetCommunity = req.body.communityAddress || demoState.communityAddress;
+        if (!targetCommunity) {
+            console.error(`   ❌ Error: Community address is missing!`);
+            throw new Error('Community not launched or configured');
+        }
+        console.log(`   🏛 Joining Community: ${targetCommunity}`);
+
         const roleData = RoleDataFactory.endUser({
             account: account.address,
-            community: demoState.communityAddress,
+            community: targetCommunity,
             avatarURI: '',
             ensName: '',
             stakeAmount: 0n
         });
 
+        console.log(`   🚀 Sending joinAndActivate transaction...`);
         const result = await client.joinAndActivate({
-            community: demoState.communityAddress,
+            community: targetCommunity,
             roleId: RoleIds.ENDUSER,
             roleData
         });
+        console.log(`   ✅ Success! Tx: ${result.tx}, SBT ID: ${result.sbtId}`);
 
         demoState.transactions.push({ type: 'User Onboarding', hash: result.tx, timestamp: Date.now() });
 
@@ -795,6 +1096,85 @@ app.get('/api/state', (req, res) => {
         tokenAddress: demoState.tokenAddress,
         transactions: demoState.transactions
     });
+});
+
+// --- New Endpoints for Token & Paymaster Binding ---
+
+app.post('/api/deploy-token', async (req, res) => {
+    try {
+        const { accountAddress, name, symbol, communityName } = req.body;
+        const account = demoState.accounts.find(a => a.address === accountAddress);
+        if (!account) throw new Error('Account not found');
+
+        const client = createWalletClient({
+            account: account as any,
+            chain: sepolia,
+            transport: http(RPC_URL)
+        }).extend(publicActions);
+
+        console.log(`🚀 Deploying xPNTs for ${communityName}...`);
+        
+        // ABI for deployxPNTsToken
+        const factoryAbi = parseAbi(['function deployxPNTsToken(string,string,string,string,uint256,address) returns (address)']);
+        
+        const hash = await client.writeContract({
+            account: account as any,
+            address: CONFIG.addresses.xPNTsFactory,
+            abi: factoryAbi,
+            functionName: 'deployxPNTsToken',
+            args: [
+                name || 'Community Token',
+                symbol || 'XPNT',
+                communityName || 'Community',
+                '', // ENS
+                1000000000000000000n, // 1:1 Exchange Rate
+                '0x0000000000000000000000000000000000000000' // Paymaster AOA
+            ]
+        });
+
+        console.log(`   Tx Sent: ${hash}`);
+        const receipt = await client.waitForTransactionReceipt({ hash });
+        console.log(`   ✅ Token Deployed`);
+
+        res.json({ success: true, tx: hash });
+    } catch (e: any) {
+        console.error('Deploy Token Error:', e);
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
+app.post('/api/bind-paymaster', async (req, res) => {
+    try {
+        const { paymasterAddress, tokenAddress, operatorAddress } = req.body;
+        const account = demoState.accounts.find(a => a.address.toLowerCase() === operatorAddress.toLowerCase());
+        if (!account) throw new Error('Operator account not found');
+
+        const client = createWalletClient({
+            account: account as any,
+            chain: sepolia,
+            transport: http(RPC_URL)
+        }).extend(publicActions);
+
+        console.log(`🔗 Binding Token ${tokenAddress} to Paymaster ${paymasterAddress}...`);
+
+        const abi = parseAbi(['function addGasToken(address)']);
+        const hash = await client.writeContract({
+            account: account as any,
+            address: paymasterAddress,
+            abi,
+            functionName: 'addGasToken',
+            args: [tokenAddress]
+        });
+
+        console.log(`   Tx Sent: ${hash}`);
+        await client.waitForTransactionReceipt({ hash });
+        console.log(`   ✅ Bound Successfully`);
+
+        res.json({ success: true, tx: hash });
+    } catch (e: any) {
+        console.error('Bind Paymaster Error:', e);
+        res.status(500).json({ success: false, error: e.message });
+    }
 });
 
 const PORT = 3000;

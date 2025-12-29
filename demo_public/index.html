@@ -411,6 +411,43 @@
             opacity: 0.8;
             margin: 5px 0;
         }
+
+        .modal {
+            display: none; 
+            position: fixed; 
+            z-index: 2000; 
+            left: 0;
+            top: 0;
+            width: 100%; 
+            height: 100%; 
+            overflow: auto; 
+            background-color: rgba(0,0,0,0.8); 
+        }
+
+        .modal-content {
+            background-color: #1a1a2e;
+            margin: 10% auto; 
+            padding: 20px; 
+            border: 1px solid #888;
+            width: 80%; 
+            max-width: 800px;
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+        }
+
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+        }
+
+        .close:hover,
+        .close:focus {
+            color: white;
+            text-decoration: none;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
@@ -419,6 +456,14 @@
         <div class="sidebar">
             <div class="logo">🚀 AAStar Demo</div>
             
+            <div class="step" onclick="switchStep(0)">
+                <div class="step-header">
+                    <span class="step-icon">🏠</span>
+                    <span class="step-title">My Dashboard (我的)</span>
+                    <span class="step-status"></span>
+                </div>
+            </div>
+
             <div class="step active" onclick="switchStep(1)">
                 <div class="step-header">
                     <span class="step-icon">👥</span>
@@ -438,7 +483,7 @@
             <div class="step" onclick="switchStep(3)">
                 <div class="step-header">
                     <span class="step-icon">⚙️</span>
-                    <span class="step-title">运营商设置</span>
+                    <span class="step-title">运营商</span>
                     <span class="step-status" id="step3-status">⏳</span>
                 </div>
             </div>
@@ -450,10 +495,71 @@
                     <span class="step-status" id="step4-status">⏳</span>
                 </div>
             </div>
+
+            <div class="step" onclick="showMetadata()" style="margin-top: 20px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 20px;">
+                <div class="step-header">
+                    <span class="step-icon">ℹ️</span>
+                    <span class="step-title">系统信息</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Metadata Modal -->
+        <div id="metadata-modal" class="modal hidden">
+            <div class="modal-content">
+                <span class="close" onclick="closeMetadata()">&times;</span>
+                <h2 style="margin-top:0">🛠 系统配置信息 (Metadata)</h2>
+                <div id="metadata-content" class="code-box" style="max-height: 500px; overflow-y: auto;">
+                    <span class="loading"></span> 加载中...
+                </div>
+            </div>
         </div>
 
         <!-- 右侧内容区 -->
         <div class="content">
+            <!-- Global Context Header -->
+             <div style="display: flex; justify-content: flex-end; align-items: center; margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.1);">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span class="text-gray-400 text-sm">Context Admin:</span>
+                    <select id="global-admin-select" class="form-select" style="width: 200px; padding: 5px 10px; font-size: 0.9rem;" onchange="loadMyDashboard()">
+                        <option value="" disabled selected>Select Admin...</option>
+                    </select>
+                    <div class="text-sm text-gray-400 ml-4">
+                        Server: <span class="text-green-400">● Online</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Global Data Storage -->
+            <script>
+                window.networkData = { v4: [], super: [] };
+                window.accounts = [];
+            </script>
+
+            <!-- Step 0: My Dashboard (我的) -->
+            <div id="step0-content" class="hidden">
+                <div class="content-header">
+                    <h1 class="content-title">🏠 My Dashboard</h1>
+                    <p class="content-subtitle">Manage your registered Communities, Tokens, and Paymasters.</p>
+                </div>
+
+                <!-- My Communities Section -->
+                <div class="card">
+                    <div class="card-title">🏛️ My Communities & Tokens</div>
+                    <div id="my-communities-list">
+                        <span class="text-gray-400">Please select a Context Admin to view data.</span>
+                    </div>
+                </div>
+
+                <!-- My Paymasters Section -->
+                <div class="card">
+                    <div class="card-title">⚙️ My Paymasters</div>
+                    <div id="my-paymasters-list">
+                        <span class="text-gray-400">Please select a Context Admin to view data.</span>
+                    </div>
+                </div>
+            </div>
+
             <!-- Step 1: 账户管理 -->
             <div id="step1-content">
                 <div class="content-header">
@@ -550,48 +656,27 @@
                 </div>
             </div>
 
-            <!-- Step 3: 运营商设置 -->
+            <!-- Step 3: 运营商 -->
             <div id="step3-content" class="hidden">
                 <div class="content-header">
-                    <h1 class="content-title">⚙️ 运营商设置</h1>
-                    <p class="content-subtitle">配置 Paymaster 运营商</p>
+                    <h1 class="content-title">⚙️ 运营商管理</h1>
+                    <p class="content-subtitle">查看已注册运营商或部属新运营商</p>
                 </div>
 
+                <!-- Section A: Registered Operators -->
                 <div class="card">
-                    <div class="card-title">📋 已有运营商</div>
+                    <div class="card-title">📋 已注册运营商 (Registered)</div>
                     <div id="operators-list">
                         <span class="loading"></span> 加载中...
                     </div>
                 </div>
 
-                <div class="card">
-                    <div class="card-title">🔧 设置新运营商</div>
-                    
-                    <div class="form-group">
-                        <label class="form-label">选择操作账户</label>
-                        <select class="form-select" id="operator-account-select" onchange="checkStatus('operator')">
-                            <option value="">请选择账户...</option>
-                        </select>
-                    </div>
-
-                    <div id="operator-status-box" class="hidden">
-                        <div class="status-card">
-                            <div class="status-item">
-                                <span class="status-label">运营商类型</span>
-                                <span class="status-value" id="status-operator-type">❌ 未注册</span>
-                            </div>
-                            <div id="operator-details" class="hidden">
-                                <div class="status-item">
-                                    <span class="status-label">aPNTs 余额</span>
-                                    <span class="status-value" id="status-operator-balance">0.00</span>
-                                </div>
-                                <div class="status-item">
-                                    <span class="status-label">配置状态</span>
-                                    <span class="status-value" id="status-operator-config">⚠️ 未配置</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                <!-- Section B: Deploy New Operator -->
+                <div class="card" style="margin-top: 20px; border-top: 1px solid rgba(255,255,255,0.1);">
+                    <div class="card-title">🚀 部署/注册新运营商 (Deploy New)</div>
+                    <p class="text-sm text-gray-400 mb-4">
+                        Current Context Admin: <span id="deploy-context-admin" class="text-white font-bold">Select Admin above</span>
+                    </p>
 
                     <div id="setup-form">
                         <div class="form-label">选择运营商类型</div>
@@ -607,7 +692,7 @@
                                 <span class="type-desc">社区独立部署，单币种</span>
                             </div>
                         </div>
-                        <button class="btn" id="setup-btn" onclick="setupOperator()">开始设置</button>
+                        <button class="btn" id="setup-btn" onclick="setupOperator()">开始设置 (For Context Admin)</button>
                     </div>
                 </div>
             </div>
@@ -640,6 +725,13 @@
                                 <span class="status-value" id="status-user-sbt">未持有</span>
                             </div>
                         </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">选择社区</label>
+                        <select class="form-select" id="onboard-community-select">
+                            <option value="">请选择社区...</option>
+                        </select>
                     </div>
 
                     <div class="btn-group" style="display: flex; gap: 10px;">
@@ -762,15 +854,196 @@
         }
 
         // 切换步骤
-        function switchStep(step) {
-            document.querySelectorAll('.step').forEach((el, idx) => el.classList.toggle('active', idx + 1 === step));
-            for (let i = 1; i <= 4; i++) document.getElementById(`step${i}-content`).classList.add('hidden');
-            document.getElementById(`step${step}-content`).classList.remove('hidden');
-            currentStep = step;
-            if (step === 1) loadAccounts();
-            else if (step === 2) { loadCommunities(); populateAccountSelect('community-account-select'); }
-            else if (step === 3) { loadOperators(); populateAccountSelect('operator-account-select'); }
-            else if (step === 4) { populateAccountSelect('user-account-select'); }
+        async function switchStep(step) {
+            document.querySelectorAll('.step').forEach((el, idx) => {
+                // Step 0 is 'My Dashboard', Step 1 is index 1, etc.
+                // My logic: switchStep(0) -> index 0. switchStep(1) -> index 1.
+                // Sidebar items are: [0: My, 1: Accounts, 2: Community, 3: Operator, 4: User]
+                // So index matches step if step=0..4
+                if (idx === step) el.classList.add('active');
+                else el.classList.remove('active');
+            });
+            
+            // Content divs
+            [0, 1, 2, 3, 4].forEach(i => {
+                const el = document.getElementById(`step${i}-content`);
+                if(el) {
+                    if (i === step) el.classList.remove('hidden');
+                    else el.classList.add('hidden');
+                }
+            });
+
+            if (step === 0) await loadMyDashboard();
+            if (step === 1) await loadAccounts();
+            if (step === 2) await loadCommunities();
+            if (step === 3) await loadOperators();
+        }
+
+        async function loadMyDashboard() {
+            const adminAddr = document.getElementById('global-admin-select').value;
+            const comDiv = document.getElementById('my-communities-list');
+            const pmDiv = document.getElementById('my-paymasters-list');
+            const deployAdminSpan = document.getElementById('deploy-context-admin');
+
+            if (deployAdminSpan) {
+                deployAdminSpan.textContent = adminAddr ? (
+                    (accountsData.find(a=>a.address===adminAddr)?.name || 'Unknown') + ` (${adminAddr.slice(0,6)}...)`
+                ) : 'Select Admin above';
+            }
+
+            if (!adminAddr) {
+                 comDiv.innerHTML = '<span class="text-gray-400">Please select a Context Admin first.</span>';
+                 pmDiv.innerHTML = '<span class="text-gray-400">Please select a Context Admin first.</span>';
+                 return;
+            }
+
+            // 1. My Communities & Tokens
+            // We need communities data. If not loaded, fetch it.
+            if (!window.networkData || !window.networkData.communities) {
+                 await loadCommunities(true); // silent load
+            }
+            const myComs = (window.networkData.communities || []).filter(c => c.accountAddress.toLowerCase() === adminAddr.toLowerCase());
+            
+            if (myComs.length === 0) {
+                 comDiv.innerHTML = '<div class="text-gray-500 italic">No communities found for this admin.</div>';
+            } else {
+                 comDiv.innerHTML = myComs.map(c => {
+                     const hasToken = c.tokenAddress && c.tokenAddress !== '0x0000000000000000000000000000000000000000';
+                     const registered = c.isRegistered; // from API
+                     return `
+                        <div class="list-card">
+                            <div class="list-card-title">${c.communityData?.name || 'Unknown Community'}</div>
+                            <div class="list-card-detail text-xs text-gray-400">${c.address}</div>
+                            <div class="mt-2 text-sm">
+                                <div class="flex justify-between">
+                                    <span>Registry Status:</span>
+                                    <span class="${registered ? 'text-green-400' : 'text-red-400'}">${registered ? '✅ Registered' : '❌ Not Registered'}</span>
+                                </div>
+                                <div class="flex justify-between mt-1">
+                                    <span>xPNTs Token:</span>
+                                    <span class="${hasToken ? 'text-green-400' : 'text-red-400'}">${hasToken ? '✅ Deployed' : '❌ Not Deployed'}</span>
+                                </div>
+                            </div>
+                            ${!hasToken ? `<button onclick="deployToken('${c.accountAddress}', '${c.communityData?.name || 'Community'}')" class="mt-2 bg-blue-900 hover:bg-blue-700 text-white px-2 py-1 rounded text-xs w-full">Deploy xPNTs</button>` : ''}
+                        </div>
+                     `;
+                 }).join('');
+            }
+
+            // 2. My Paymasters
+            if (!window.networkData || !window.networkData.v4) {
+                 await loadOperators(true);
+            }
+            // Filter V4 Paymasters where operator == adminAddr
+            // And also check SuperPaymaster (if they are one)
+            const myV4 = (window.networkData.v4 || []).filter(p => p.operator.toLowerCase() === adminAddr.toLowerCase());
+            const mySuper = (window.networkData.super || []).filter(p => p.address.toLowerCase() === adminAddr.toLowerCase()); // Super uses address as identity usually
+            
+            let pmHtml = '';
+            
+            // V4 Paymasters
+            if (myV4.length > 0) {
+                pmHtml += myV4.map(p => `
+                    <div class="list-card">
+                        <div class="list-card-title">📦 Paymaster V4</div>
+                        <div class="list-card-detail text-xs text-gray-400">${p.address}</div>
+                         <div class="mt-2 text-sm">
+                             <div class="flex justify-between">
+                                <span>Version:</span>
+                                <span>${p.version}</span>
+                             </div>
+                             <div class="flex justify-between mt-1">
+                                 <span>Supported Tokens:</span>
+                                 <span>${(p.supportedTokens||[]).length}</span>
+                             </div>
+                        </div>
+                        <!-- Binding Logic: Check against My Communities -->
+                        ${myComs.map(c => {
+                             if (!c.tokenAddress || c.tokenAddress === '0x0000000000000000000000000000000000000000') return '';
+                             // Check if this Paymaster supports this token
+                             const isBound = (p.supportedTokens || []).map(t=>t.toLowerCase()).includes(c.tokenAddress.toLowerCase());
+                             if (isBound) {
+                                 return `<div class="mt-2 text-xs text-green-400 border border-green-900 bg-green-900/20 p-1 rounded text-center">✅ Bound to ${c.communityData?.name}</div>`;
+                             } else {
+                                 return `<button onclick="bindPaymaster('${c.tokenAddress}', '${c.accountAddress}')" class="mt-2 bg-purple-900 hover:bg-purple-700 text-white px-2 py-1 rounded text-xs w-full">Bind to ${c.communityData?.name}</button>`;
+                             }
+                        }).join('')}
+                    </div>
+                `).join('');
+            }
+
+            if (mySuper.length > 0) {
+                 pmHtml += mySuper.map(p => `
+                    <div class="list-card border-yellow-700/50">
+                        <div class="list-card-title text-yellow-500">⚡ SuperPaymaster Operator</div>
+                         <div class="mt-2 text-xs text-center text-gray-400">
+                            (Universal Access)
+                        </div>
+                    </div>
+                 `).join('');
+            }
+
+            if (pmHtml === '') {
+                 pmHtml = '<div class="text-gray-500 italic">No Paymasters found for this admin.</div>';
+            }
+            
+            pmDiv.innerHTML = pmHtml;
+        }
+
+        async function loadCommunities(silent = false) {
+            try {
+                const res = await (await fetch(`${API_BASE}/get-communities`, { method: 'POST' })).json();
+                if (res.success) {
+                    if (!window.networkData) window.networkData = {};
+                    window.networkData.communities = res.communities; // Cache for Dashboard
+                    
+                    if (!silent) {
+                        const listDiv = document.getElementById('communities-list');
+                        if (listDiv) { // Only update if element exists (Step 2 might be hidden)
+                            renderCommunitiesList(res.communities);
+                        }
+                        populateAccountSelect('community-account-select');
+                    }
+                }
+            } catch (e) { console.error(e); if (!silent) showToast('加载社区失败', 'error'); }
+        }
+
+        function renderCommunitiesList(accounts) {
+             const listDiv = document.getElementById('communities-list');
+             if(!listDiv) return;
+             if (accounts.length === 0) {
+                 listDiv.innerHTML = '<div class="text-center text-gray-500 py-4">暂无社区</div>';
+                 return;
+             }
+             listDiv.innerHTML = accounts.map(c => {
+                        const adminDisplay = `
+                            <div class="code-box break-all text-xs" style="margin-top:2px;">
+                                <a href="https://sepolia.etherscan.io/address/${c.accountAddress}" target="_blank" style="color: white; text-decoration: underline;">
+                                    ${c.accountAddress}
+                                </a>
+                                ${c.accountName && c.accountName !== 'Unknown Community' ? `<br/><span class="text-gray-500">(${c.accountName})</span>` : ''}
+                            </div>
+                        `;
+                        
+                        return `
+                        <div class="list-card">
+                            <div class="list-card-header">
+                                <span class="list-card-title">🏛️ ${c.communityData?.name || 'Community'}</span>
+                                <span class="badge ${c.hasRole ? 'badge-success' : 'badge-aa'}">${c.hasRole ? '已激活' : '待配置'}</span>
+                            </div>
+                            <div class="list-card-detail">
+                                <span class="text-gray-600 font-bold">Operator (Admin):</span>
+                                ${adminDisplay}
+                            </div>
+                            <div class="list-card-detail mt-2">
+                                ${c.tokenAddress && c.tokenAddress != '0x0000000000000000000000000000000000000000'
+                                    ? `<div class="text-green-400">Token: ${c.tokenAddress.slice(0,10)}...</div>`
+                                    : `<div class="text-red-400">Token: Not Deployed</div>
+                                       <button onclick="deployToken('${c.accountAddress}', '${c.communityData?.name || 'Community'}')" class="mt-1 bg-blue-900 hover:bg-blue-700 text-white px-2 py-1 rounded text-xs" style="width:100%">Deploy xPNTs</button>`
+                                }
+                            </div>
+                        </div>
+                    `}).join('');
         }
 
         // 填充账户选择器
@@ -791,6 +1064,14 @@
                 }
                 if (result.success || result.accounts) {
                     accountsData = result.accounts;
+                    
+                    // Populate Global Admin Select
+                    const globalSelect = document.getElementById('global-admin-select');
+                    globalSelect.innerHTML = accountsData.map(a => 
+                        `<option value="${a.address}">${a.name} (${a.address.slice(0,6)}...)</option>`
+                    ).join('');
+                    if(accountsData.length > 0) globalSelect.value = accountsData[0].address;
+
                     renderAccountsTable();
                     await refreshBalances();
                 }
@@ -846,10 +1127,42 @@
 
         async function fundAllAccounts() {
             try {
-                const btn = event.target; btn.disabled = true; btn.innerHTML = '<span class="loading"></span> 充值中...';
-                if ((await (await fetch(`${API_BASE}/fund-accounts`, { method: 'POST' })).json()).success) { await refreshBalances(); showToast('✅ 充值完成！'); }
-                btn.disabled = false; btn.textContent = '为所有账户充值';
-            } catch (e) { showToast('充值失败', 'error'); event.target.disabled = false; event.target.textContent = '为所有账户充值'; }
+                const btn = event.target || document.querySelector('button[onclick="fundAllAccounts()"]');
+                const originalText = btn.textContent;
+                btn.disabled = true; 
+                btn.innerHTML = '<span class="loading"></span> 智能充值中(ETH/GToken/aPNTs)...';
+                
+                const response = await fetch(`${API_BASE}/fund-accounts`, { 
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ethAmount: '0.1', tokenAmount: '1000' }) 
+                });
+                const res = await response.json();
+                
+                if (res.success) {
+                    await refreshBalances();
+                    let msg = '✅ 智能充值完成！';
+                    if (res.results) {
+                        const mutations = res.results.filter(r => r.actions.some(a => !a.includes('OK')));
+                        if (mutations.length > 0) {
+                            msg += `<br/><span style="font-size:0.8em">${mutations.length} 个账户已更新余额</span>`;
+                        } else {
+                            msg += ' (所有账户余额充足)';
+                        }
+                    }
+                    showToast(msg);
+                } else {
+                    showToast('充值异常: ' + (res.error || 'Unknown error'), 'error');
+                }
+                
+                btn.disabled = false; 
+                btn.textContent = originalText;
+            } catch (e) { 
+                console.error(e);
+                showToast('充值请求失败', 'error'); 
+                const btn = event.target || document.querySelector('button[onclick="fundAllAccounts()"]');
+                if(btn) { btn.disabled = false; btn.textContent = '为所有账户充值'; }
+            }
         }
 
         async function launchCommunity() {
@@ -864,83 +1177,240 @@
             } catch (e) { showToast('启动失败', 'error'); event.target.disabled = false; }
         }
 
-        async function loadCommunities() {
-            const listDiv = document.getElementById('communities-list');
-            try {
-                const res = await (await fetch(`${API_BASE}/get-communities`, { method: 'POST' })).json();
-                if (res.success && res.communities.length > 0) {
-                    listDiv.innerHTML = res.communities.map(c => {
-                        const adminDisplay = `
-                            <div class="code-box break-all text-xs" style="margin-top:2px;">
-                                <a href="https://sepolia.etherscan.io/address/${c.accountAddress}" target="_blank" class="link-primary">
-                                    ${c.accountAddress}
-                                </a>
-                                ${c.accountName && c.accountName !== 'Unknown Community' ? `<br/><span class="text-gray-500">(${c.accountName})</span>` : ''}
-                            </div>
-                        `;
-                        
-                        return `
-                        <div class="list-card">
-                            <div class="list-card-header">
-                                <span class="list-card-title">🏛️ ${c.communityData?.name || 'Community'}</span>
-                                <span class="badge ${c.hasRole ? 'badge-success' : 'badge-aa'}">${c.hasRole ? '已激活' : '待配置'}</span>
-                            </div>
-                            <div class="list-card-detail">
-                                <span class="text-gray-600 font-bold">Operator (Admin):</span>
-                                ${adminDisplay}
-                            </div>
-                            <div class="list-card-detail mt-2">Token: ${c.tokenAddress ? c.tokenAddress.slice(0, 10) + '...' : '未部署'}</div>
-                            <div class="list-card-detail" style="border-top: 1px dashed #eee; margin-top: 5px; padding-top: 5px;">
-                                ⚙️ Paymaster Binding: None
-                            </div>
-                        </div>
-                    `}).join('');
-                } else listDiv.innerHTML = '<div style="text-align: center; opacity: 0.5;">暂无社区</div>';
-            } catch (e) { listDiv.innerHTML = '加载失败'; }
-        }
+
 
         async function setupOperator() {
-            const idx = document.getElementById('operator-account-select').value;
-            if (!idx) return showToast('请选择账户', 'error');
+            // Use Global Context Admin
+            const adminAddr = document.getElementById('global-admin-select').value;
+            if (!adminAddr) return showToast('Please select a Context Admin first (Top Right)', 'error');
+            
+            // Find account index (API expects index)
+            const accountIndex = accountsData.findIndex(a => a.address.toLowerCase() === adminAddr.toLowerCase());
+            if (accountIndex === -1) return showToast('Selected Admin not found in local accounts', 'error');
+
             try {
-                const btn = event.target; btn.disabled = true; btn.innerHTML = '<span class="loading"></span> 设置中...';
-                const res = await (await fetch(`${API_BASE}/setup-operator`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accountIndex: parseInt(idx), type: selectedOperatorType }) })).json();
-                if (res.success) { await loadOperators(); showToast('✅ 运营商设置成功！'); await checkStatus('operator'); }
-                else showToast('设置失败: ' + res.error, 'error');
-                btn.disabled = false; btn.textContent = '开始设置';
-            } catch (e) { showToast('设置失败', 'error'); event.target.disabled = false; }
+                const btn = event.target; 
+                const originalText = btn.innerHTML;
+                btn.disabled = true; btn.innerHTML = '<span class="loading"></span> Setting up...';
+                
+                const res = await (await fetch(`${API_BASE}/setup-operator`, { 
+                    method: 'POST', 
+                    headers: { 'Content-Type': 'application/json' }, 
+                    body: JSON.stringify({ accountIndex: accountIndex, type: selectedOperatorType }) 
+                })).json();
+
+                if (res.success) { 
+                    await loadOperators(); 
+                    showToast('✅ Operator Setup/Deployed Successfully!'); 
+                    // Refresh Dashboard too if needed
+                    // await loadMyDashboard(); 
+                } else {
+                    showToast('Setup Failed: ' + res.error, 'error');
+                }
+                btn.disabled = false; btn.innerHTML = originalText;
+            } catch (e) { showToast('Setup Request Failed', 'error'); event.target.disabled = false; }
         }
 
-        async function loadOperators() {
+    async function deployToken(accountAddr, commName) {
+        const name = prompt("Enter Token Name:", commName + " Token");
+        if (!name) return;
+        const symbol = prompt("Enter Token Symbol:", "XPNT");
+        
+        const btn = event.target; 
+        const originalText = btn.innerText;
+        btn.innerText = 'Deploying...'; btn.disabled = true;
+
+        try {
+            const res = await (await fetch(`${API_BASE}/deploy-token`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ accountAddress: accountAddr, name, symbol, communityName: commName })
+            })).json();
+            
+            if (res.success) {
+                showToast(`Token Deployed! Tx: ${res.tx} (Waiting confirm...)`);
+                setTimeout(loadCommunities, 5000); // refresh later
+            } else {
+                showToast("Deploy Failed: " + res.error, "error");
+            }
+        } catch (e) { showToast(e.message, "error"); }
+        btn.innerText = originalText; btn.disabled = false;
+    }
+
+    async function bindPaymaster(tokenAddr, communityOwnerAddr) {
+        const adminAddr = document.getElementById('global-admin-select').value;
+        if (!adminAddr) return showToast('Please select a Global Admin first', 'error');
+
+        // Logic Check: Does Admin match Community Owner?
+        if (communityOwnerAddr && adminAddr.toLowerCase() !== communityOwnerAddr.toLowerCase()) {
+            if(!confirm(`⚠️ Warning: You are operating as ${adminAddr.slice(0,6)}... \nbut the community owner is ${communityOwnerAddr.slice(0,6)}... \n\nContinue anyway?`)) return;
+        }
+
+        // Find Paymasters owned by this Admin
+        const myPaymasters = window.networkData.v4.filter(p => p.operator.toLowerCase() === adminAddr.toLowerCase());
+        
+        let targetPmAddr = null;
+        if (myPaymasters.length === 0) {
+            return showToast('Selected Admin has no V4 Paymasters deployed.', 'error');
+        } else if (myPaymasters.length === 1) {
+            targetPmAddr = myPaymasters[0].address;
+            if(!confirm(`Bind Token to your Paymaster ${targetPmAddr.slice(0,6)}...?`)) return;
+        } else {
+            // Multiple paymasters, let them pick (simple prompt for now)
+            const listStr = myPaymasters.map((p,i) => `[${i}] ${p.address.slice(0,6)}...`).join('\n');
+            const idx = prompt(`You have ${myPaymasters.length} Paymasters. Enter index (0-${myPaymasters.length-1}):\n${listStr}`, "0");
+            if (idx === null) return;
+            if (myPaymasters[idx]) targetPmAddr = myPaymasters[idx].address;
+            else return showToast('Invalid selection', 'error');
+        }
+
+        const btn = event.target; 
+        const originalText = btn.innerText;
+        btn.innerText = 'Binding...'; btn.disabled = true;
+
+        try {
+            const res = await (await fetch(`${API_BASE}/bind-paymaster`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ paymasterAddress: targetPmAddr, tokenAddress: tokenAddr, operatorAddress: adminAddr })
+            })).json();
+            
+            if (res.success) {
+                showToast(`Bound Successfully! Tx: ${res.tx}`);
+                // Refresh to show status if possible (though binding is on PM side, won't change Community card much unless we track it)
+            } else {
+                showToast("Bind Failed: " + res.error, "error");
+            }
+        } catch (e) { showToast(e.message, "error"); }
+        btn.innerText = originalText; btn.disabled = false;
+    }
+
+    async function loadOperators() {
             const listDiv = document.getElementById('operators-list');
             try {
-                const res = await (await fetch(`${API_BASE}/get-operators`, { method: 'POST' })).json();
-                if (res.success && res.operators.length > 0) {
-                    listDiv.innerHTML = res.operators.map(o => `
-                        <div class="list-card">
-                            <div class="list-card-header">
-                                <span class="list-card-title">⚙️ ${o.accountName}</span>
-                                <span class="badge badge-success">${o.type === 'super' ? 'SuperPaymaster' : 'V4'}</span>
+                const res = await (await fetch(`${API_BASE}/get-network-operators`, { method: 'POST' })).json();
+                if (res.success) {
+                    window.networkData = { v4: res.v4, super: res.super }; // Store for binding logic
+
+                    let html = '';
+
+                    // 1. Factory Deployments (V4)
+                    html += `<div style="margin-bottom: 20px;">
+                        <h4 style="margin-bottom: 8px;">🏗 Factory Deployments (V4) <span class="badge" style="background:#eee;color:#333">${res.v4.length}</span></h4>
+                        ${res.v4.length > 0 ? res.v4.map(o => `
+                            <div class="list-card">
+                                <div class="list-card-header">
+                                    <span class="list-card-title">⚙️ Paymaster (V4)</span>
+                                    <span class="badge badge-success">Deployed</span>
+                                </div>
+                                <div class="list-card-detail">
+                                    <span class="text-gray-600 font-bold">Paymaster Address:</span>
+                                    <div class="code-box break-all text-xs" style="margin-top:2px;">
+                                        <a href="https://sepolia.etherscan.io/address/${o.address}" target="_blank" style="color: white; text-decoration: underline;">${o.address}</a>
+                                    </div>
+                                </div>
+                                <div class="list-card-detail mt-2">
+                                    <span class="text-gray-600 font-bold">Operator:</span>
+                                    <div class="code-box break-all text-xs" style="margin-top:2px;">
+                                        <a href="https://sepolia.etherscan.io/address/${o.operator}" target="_blank" style="color: white; text-decoration: underline;">${o.operator}</a>
+                                        ${o.operatorName ? `<br/><span class="text-gray-500">(${o.operatorName})</span>` : ''}
+                                    </div>
+                                </div>
+                                <div class="list-card-detail mt-2">
+                                    <span class="text-gray-600 font-bold">Supported Token (xPNTs):</span>
+                                    <div style="margin-top:2px; font-family:monospace; color:#a8d1ff">
+                                        ${o.tokens && o.tokens.length > 0 ? o.tokens.map(t => `<a href="https://sepolia.etherscan.io/address/${t}" target="_blank" style="color: inherit;">${t.slice(0,10)}...</a>`).join(', ') : '<span style="color:#f87171">Not Initialized / None</span>'}
+                                    </div>
+                                </div>
                             </div>
-                            <div class="list-card-detail">地址: ${o.accountAddress?.slice(0, 10)}...</div>
-                            <div class="list-card-detail">余额: ${(Number(o.superPaymaster?.balance || 0) / 1e18).toFixed(2)} aPNTs</div>
+                        `).join('') : '<div class="text-gray-500 text-sm italic">暂无部署</div>'}
+                    </div>`;
+
+                    // 2. SuperPaymaster Operators
+                    html += `<div>
+                        <div class="flex justify-between items-center mb-2">
+                            <h4 style="margin-bottom: 0;">🦸 SuperPaymaster Operators <span class="badge" style="background:#eee;color:#333">${res.super.length}</span></h4>
+                            <div class="text-xs text-right">
+                                <span class="text-gray-500">aPNTs Token:</span>
+                                <a href="https://sepolia.etherscan.io/address/${res.constants?.apntsToken}" target="_blank" style="color: white; text-decoration: underline;">
+                                    ${res.constants?.apntsToken?.slice(0, 8)}...${res.constants?.apntsToken?.slice(-6)}
+                                </a>
+                            </div>
                         </div>
-                    `).join('');
-                } else listDiv.innerHTML = '<div style="text-align: center; opacity: 0.5;">暂无运营商</div>';
+                        ${res.super.length > 0 ? res.super.map(o => `
+                            <div class="list-card">
+                                <div class="list-card-header">
+                                    <span class="list-card-title">⚡️ SuperPaymaster</span>
+                                    <span class="badge badge-success">Registered</span>
+                                </div>
+                                <div class="list-card-detail">
+                                    <span class="text-gray-600 font-bold">Operator (Admin):</span>
+                                    <div class="code-box break-all text-xs" style="margin-top:2px;">
+                                        <a href="https://sepolia.etherscan.io/address/${o.operator}" target="_blank" style="color: white; text-decoration: underline;">${o.operator}</a>
+                                        ${o.operatorName ? `<br/><span class="text-gray-500">(${o.operatorName})</span>` : ''}
+                                    </div>
+                                </div>
+                                <div class="list-card-detail mt-2">
+                                    <span class="text-gray-600 font-bold">Deposit (Balance):</span>
+                                    <span class="text-white font-mono">${(Number(o.balance || 0) / 1e18).toFixed(4)} aPNTs</span>
+                                </div>
+                                <div class="list-card-detail mt-2">
+                                    <span class="text-gray-600 font-bold">Shared Contract:</span>
+                                    <div class="code-box break-all text-xs" style="margin-top:2px;">
+                                        <a href="https://sepolia.etherscan.io/address/${o.address}" target="_blank" style="color: white; text-decoration: underline;">${o.address}</a>
+                                    </div>
+                                </div>
+                            </div>
+                        `).join('') : '<div class="text-gray-500 text-sm italic">暂无注册</div>'}
+                    </div>`;
+
+                    listDiv.innerHTML = html;
+                } else {
+                    listDiv.innerHTML = '加载失败';
+                }
             } catch (e) { listDiv.innerHTML = '加载失败'; }
         }
 
         async function onboardUser() {
             const idx = document.getElementById('user-account-select').value;
+            const commAddr = document.getElementById('onboard-community-select').value;
+            
             if (!idx) return showToast('请选择账户', 'error');
+            if (!commAddr) return showToast('请选择社区', 'error');
+
             try {
                 const btn = document.getElementById('onboard-btn');
                 btn.disabled = true; btn.innerHTML = '<span class="loading"></span> 处理中...';
-                const res = await (await fetch(`${API_BASE}/onboard-user`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ accountIndex: parseInt(idx) }) })).json();
+                
+                const res = await (await fetch(`${API_BASE}/onboard-user`, { 
+                    method: 'POST', 
+                    headers: { 'Content-Type': 'application/json' }, 
+                    body: JSON.stringify({ accountIndex: parseInt(idx), communityAddress: commAddr }) 
+                })).json();
+
                 if (res.success) { showToast('✅ 入驻成功！SBT ID: ' + res.sbtId); await checkStatus('user'); }
                 else showToast('入驻失败: ' + res.error, 'error');
                 btn.disabled = false; btn.textContent = '部署 AA 并 Mint SBT';
             } catch (e) { showToast('失败', 'error'); document.getElementById('onboard-btn').disabled = false; }
+        }
+
+        async function populateCommunitySelect() {
+            const select = document.getElementById('onboard-community-select');
+            try {
+                const res = await (await fetch(`${API_BASE}/get-communities`, { method: 'POST' })).json();
+                if (res.success && res.communities.length > 0) {
+                    // Start filtering valid communities
+                    const validCommunities = res.communities.filter(c => c.hasRole);
+                    if (validCommunities.length > 0) {
+                        select.innerHTML = '<option value="">请选择社区...</option>' + 
+                            validCommunities.map(c => `<option value="${c.accountAddress}">${c.communityData?.name || 'Unnamed'} (${c.accountAddress.slice(0,8)}...)</option>`).join('');
+                    } else {
+                        select.innerHTML = '<option value="">暂无已激活社区</option>';
+                    }
+                } else {
+                    select.innerHTML = '<option value="">暂无社区</option>';
+                }
+            } catch (e) { console.error(e); }
         }
 
         window.onload = async () => {
@@ -948,6 +1418,54 @@
             await loadCommunities();
             await loadOperators();
         };
+
+        async function showMetadata() {
+            const modal = document.getElementById('metadata-modal');
+            modal.style.display = 'block';
+            modal.classList.remove('hidden');
+            
+            try {
+                const res = await (await fetch(`${API_BASE}/config`)).json();
+                if (res.success) {
+                    const commsRes = await (await fetch(`${API_BASE}/get-communities`, { method: 'POST' })).json();
+                    const communities = commsRes.success ? commsRes.communities : [];
+
+                    document.getElementById('metadata-content').innerHTML = `
+                        <div style="margin-bottom:10px"><strong>Network:</strong> ${res.network}</div>
+                        <div style="margin-bottom:10px"><strong>Supplier (Admin):</strong> ${res.config.supplier}</div>
+                        <hr style="border-color:#444;margin:10px 0"/>
+                        <div style="margin-bottom:5px"><strong>Contracts:</strong></div>
+                        <div class="code-box text-xs">Registry: ${res.config.contracts.registry}</div>
+                        <div class="code-box text-xs mt-1">PaymasterFactory: ${res.config.contracts.paymasterFactory}</div>
+                        <div class="code-box text-xs mt-1">SimpleAccountFactory: ${res.config.contracts.simpleAccountFactory}</div>
+                        <div class="code-box text-xs mt-1">GToken: ${res.config.contracts.gToken}</div>
+                        <div class="code-box text-xs mt-1" style="color:#a8d1ff">APNTs (Global): ${res.config.contracts.apntsToken || 'Not Set'}</div>
+                        
+                        <hr style="border-color:#444;margin:10px 0"/>
+                        <div style="margin-bottom:5px"><strong>Community Tokens (X Points):</strong></div>
+                        ${communities.length > 0 ? communities.map(c => `
+                            <div style="margin-bottom:8px; padding-bottom:8px; border-bottom:1px solid #333">
+                                <div style="font-weight:bold">${c.communityData?.name || 'Unknown'} <span style="font-size:0.8em;color:#888">(${c.accountAddress.slice(0,6)}...)</span></div>
+                                <div style="font-size:0.85em; margin-top:2px">
+                                    <span style="color:#aaa">Token:</span> 
+                                    <span style="font-family:monospace; color:#a8d1ff">${c.tokenAddress || 'Not Configured'}</span>
+                                </div>
+                            </div>
+                        `).join('') : '<div style="color:#888;font-style:italic">No communities found</div>'}
+
+                        <div style="margin-top:20px; font-size:10px; color:#666">
+                            RPC: ${res.config.rpcUrl}
+                        </div>
+                    `;
+                }
+            } catch (e) {
+                document.getElementById('metadata-content').innerText = '加载失败';
+            }
+        }
+
+        function closeMetadata() {
+            document.getElementById('metadata-modal').style.display = 'none';
+        }
     </script>
 </body>
 </html>
