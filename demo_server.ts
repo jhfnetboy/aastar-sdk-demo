@@ -5,6 +5,7 @@
 
 import express from 'express';
 import cors from 'cors';
+import * as fs from 'fs';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
@@ -43,24 +44,64 @@ const demoState = {
     transactions: [] as Array<{ type: string; hash: Hex; timestamp: number }>
 };
 
-// 1. 生成账户
+const ACCOUNTS_FILE = path.join(__dirname, 'saved_accounts.json');
+
+// 加载保存的账户
+if (fs.existsSync(ACCOUNTS_FILE)) {
+    try {
+        const saved = JSON.parse(fs.readFileSync(ACCOUNTS_FILE, 'utf-8'));
+        if (saved && saved.length > 0) {
+            console.log(`📦 Loaded ${saved.length} saved accounts from disk`);
+            demoState.accounts = saved;
+        }
+    } catch (e) {
+        console.error('⚠️ Failed to load saved accounts:', e);
+    }
+}
+
+// 1. 生成测试账户 (或使用保存的)
 app.post('/api/generate-accounts', async (req, res) => {
     try {
-        console.log('\n🎲 Generating accounts...');
-        const { names } = req.body;
-        const keys = KeyManager.generateKeyPairs(names || ['Alice', 'Bob', 'Charlie']);
+        console.log('\n👥 Generating/Loading accounts...');
         
-        demoState.accounts = keys.map(k => ({
-            name: k.name,
-            address: k.address,
-            privateKey: k.privateKey
-        }));
+        // 如果已经有账户且不强制重新生成，则直接返回
+        if (demoState.accounts.length > 0 && !req.body.force) {
+            console.log('   Using existing accounts');
+            return res.json({ 
+                success: true, 
+                message: 'Using existing accounts', 
+                accounts: demoState.accounts.map(a => ({ 
+                    name: a.name, 
+                    address: a.address,
+                    privateKey: a.privateKey
+                }))
+            });
+        }
 
-        console.log('✅ Generated accounts:');
-        demoState.accounts.forEach(a => {
-            console.log(`   ${a.name}: ${a.address}`);
-            console.log(`   Private Key: ${a.privateKey.substring(0, 10)}...${a.privateKey.substring(a.privateKey.length - 8)}`);
-        });
+        const count = 3;
+        const names = ['Alice', 'Bob', 'Charlie'];
+        const accounts = [];
+
+        for (let i = 0; i < count; i++) {
+            const privateKey = generatePrivateKey();
+            const account = privateKeyToAccount(privateKey);
+            accounts.push({
+                name: names[i],
+                address: account.address,
+                privateKey: privateKey
+            });
+            console.log(`   Generated ${names[i]}: ${account.address}`);
+        }
+
+        demoState.accounts = accounts;
+        
+        // 保存到文件
+        try {
+            fs.writeFileSync(ACCOUNTS_FILE, JSON.stringify(accounts, null, 2));
+            console.log('   💾 Accounts saved to disk');
+        } catch (e) {
+            console.error('   ⚠️ Failed to save accounts:', e);
+        }
 
         res.json({ 
             success: true, 
