@@ -351,7 +351,7 @@
                         result = await fetch(`${API_BASE}/fund-accounts`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ ethAmount: '0.01', tokenAmount: '20' })
+                            body: JSON.stringify({ ethAmount: '0.05', tokenAmount: '100' })
                         }).then(r => r.json());
                         
                         // 显示余额信息

@@ -85,8 +85,8 @@ app.post('/api/fund-accounts', async (req, res) => {
 
         const supplierAddress = privateKeyToAccount(SUPPLIER_KEY).address;
         console.log(`   💼 Supplier (资金提供者): ${supplierAddress}`);
-        console.log(`   Target ETH: ${ethAmount || '0.01'} per account`);
-        console.log(`   Target GToken: ${tokenAmount || '20'} per account`);
+        console.log(`   Target ETH: ${ethAmount || '0.05'} per account`);
+        console.log(`   Target GToken: ${tokenAmount || '100'} per account`);
 
         // 充值 ETH
         console.log('\n   📤 Funding ETH...');
@@ -99,7 +99,7 @@ app.post('/api/fund-accounts', async (req, res) => {
                 chain: sepolia,
                 supplierKey: SUPPLIER_KEY,
                 targetAddress: account.address,
-                amount: ethAmount || '0.01'
+                amount: ethAmount || '0.05'
             });
         }
 
@@ -115,7 +115,7 @@ app.post('/api/fund-accounts', async (req, res) => {
                 supplierKey: SUPPLIER_KEY,
                 targetAddress: account.address,
                 tokenAddress: process.env.GTOKEN_ADDR as Address,
-                amount: tokenAmount || '20'
+                amount: tokenAmount || '100'
             });
         }
 
