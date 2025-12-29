@@ -11,6 +11,7 @@ import { fileURLToPath } from 'url';
 import { http, parseEther, createPublicClient, erc20Abi, type Hex, type Address } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { sepolia } from 'viem/chains';
+import { RegistryABI } from '@aastar/core';
 import { 
     KeyManager, 
     FundingManager, 
@@ -75,14 +76,15 @@ app.post('/api/generate-accounts', async (req, res) => {
     }
 });
 
-// 2. 批量充值
+// 2. 批量充值 (Supplier 的唯一用途：提供资金)
 app.post('/api/fund-accounts', async (req, res) => {
     try {
-        console.log('\n💰 Funding accounts...');
+        console.log('\n💰 Funding accounts (Supplier 提供资金)...');
         const { ethAmount, tokenAmount } = req.body;
         const publicClient = createPublicClient({ chain: sepolia, transport: http(RPC_URL) });
 
-        console.log(`   Using Supplier: ${privateKeyToAccount(SUPPLIER_KEY).address}`);
+        const supplierAddress = privateKeyToAccount(SUPPLIER_KEY).address;
+        console.log(`   💼 Supplier (资金提供者): ${supplierAddress}`);
         console.log(`   Target ETH: ${ethAmount || '0.05'} per account`);
         console.log(`   Target GToken: ${tokenAmount || '50'} per account`);
 
@@ -145,15 +147,35 @@ app.post('/api/fund-accounts', async (req, res) => {
     }
 });
 
-// 3. 启动社区
+// 3. 启动社区 (使用生成的账户，不是 Supplier！)
 app.post('/api/launch-community', async (req, res) => {
     try {
         console.log('\n🏛️ Launching community...');
         const { accountIndex, communityName } = req.body;
-        const account = privateKeyToAccount(demoState.accounts[accountIndex || 0].privateKey);
+        const selectedAccount = demoState.accounts[accountIndex || 0];
+        const account = privateKeyToAccount(selectedAccount.privateKey);
 
-        console.log(`   Admin: ${demoState.accounts[accountIndex || 0].name} (${account.address})`);
-        console.log(`   Community Name: ${communityName || 'DemoDAO'}`);
+        console.log(`   👤 Community Admin: ${selectedAccount.name} (${account.address})`);
+        console.log(`   📝 Community Name: ${communityName || 'DemoDAO'}`);
+
+        // 检查账户是否已有 COMMUNITY 角色
+        const publicClient = createPublicClient({ chain: sepolia, transport: http(RPC_URL) });
+        const COMMUNITY_ROLE_ID = '0xe94d78b6d8fb99b2c21131eb4552924a60f564d8515a3cc90ef300fc9735c074' as Hex;
+        
+        const hasRole = await publicClient.readContract({
+            address: process.env.REGISTRY_ADDR as Address,
+            abi: RegistryABI,
+            functionName: 'hasRole',
+            args: [COMMUNITY_ROLE_ID, account.address]
+        });
+
+        if (hasRole) {
+            console.log(`   ⚠️  ${selectedAccount.name} already has COMMUNITY role!`);
+            return res.status(400).json({ 
+                success: false, 
+                error: `${selectedAccount.name} already has COMMUNITY role. Please use a different account or exit the role first.` 
+            });
+        }
 
         const client = createCommunityClient({
             chain: sepolia,
@@ -174,11 +196,15 @@ app.post('/api/launch-community', async (req, res) => {
             tokenSymbol: 'DEMO'
         });
 
+        console.log('   📦 Launch result:', JSON.stringify(result, null, 2));
+        console.log('   📦 Result type:', typeof result);
+        console.log('   📦 Result keys:', Object.keys(result || {}));
+
         demoState.communityAddress = account.address;
-        demoState.tokenAddress = result.tokenAddress;
+        demoState.tokenAddress = result?.tokenAddress || ('0x0000000000000000000000000000000000000000' as Address);
         
         // 安全处理 txs（可能为 undefined）
-        const txs = result.txs || [];
+        const txs = result?.txs || [];
         if (txs.length > 0) {
             demoState.transactions.push(...txs.map(hash => ({ type: 'Community Launch', hash, timestamp: Date.now() })));
         }

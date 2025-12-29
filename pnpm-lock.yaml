@@ -11,6 +11,9 @@ importers:
 
   .:
     dependencies:
+      '@aastar/core':
+        specifier: link:../aastar-sdk/packages/core
+        version: link:../aastar-sdk/packages/core
       '@aastar/sdk':
         specifier: link:../aastar-sdk/packages/sdk
         version: link:../aastar-sdk/packages/sdk

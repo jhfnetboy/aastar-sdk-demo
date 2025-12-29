@@ -19,6 +19,7 @@
   "license": "MIT",
   "dependencies": {
     "@aastar/sdk": "link:../aastar-sdk/packages/sdk",
+    "@aastar/core": "link:../aastar-sdk/packages/core",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
