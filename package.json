@@ -6,7 +6,9 @@
   "scripts": {
     "demo": "tsx demo_server.ts",
     "dev": "tsx demo_server.ts",
-    "utils": "tsx demo_utils.ts"
+    "utils": "tsx demo_utils.ts",
+    "init-supplier": "tsx init_supplier_gtoken.ts",
+    "check-balance": "tsx check_supplier_balance.ts"
   },
   "keywords": [
     "aastar",
