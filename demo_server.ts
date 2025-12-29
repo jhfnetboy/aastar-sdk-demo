@@ -10,7 +10,7 @@ import * as dotenv from 'dotenv';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 import { http, parseEther, createPublicClient, erc20Abi, type Hex, type Address } from 'viem';
-import { privateKeyToAccount } from 'viem/accounts';
+import { privateKeyToAccount, generatePrivateKey } from 'viem/accounts';
 import { sepolia } from 'viem/chains';
 import { RegistryABI } from '@aastar/core';
 import { 
@@ -67,13 +67,19 @@ app.post('/api/generate-accounts', async (req, res) => {
         // 如果已经有账户且不强制重新生成，则直接返回
         if (demoState.accounts.length > 0 && !req.body.force) {
             console.log('   Using existing accounts');
+            // Log full keys for debugging
+            demoState.accounts.forEach(a => {
+                console.log(`   Loaded ${a.name}: ${a.address}`);
+                // console.log(`   Private Key: ${a.privateKey}`); // Creating security risk if logged in production
+            });
+            
             return res.json({ 
                 success: true, 
                 message: 'Using existing accounts', 
                 accounts: demoState.accounts.map(a => ({ 
                     name: a.name, 
                     address: a.address,
-                    privateKey: a.privateKey
+                    privateKey: a.privateKey // Return full key to client
                 }))
             });
         }
@@ -91,6 +97,7 @@ app.post('/api/generate-accounts', async (req, res) => {
                 privateKey: privateKey
             });
             console.log(`   Generated ${names[i]}: ${account.address}`);
+            console.log(`   Private Key: ${privateKey}`); // Log full key as requested by user
         }
 
         demoState.accounts = accounts;
@@ -111,8 +118,42 @@ app.post('/api/generate-accounts', async (req, res) => {
                 privateKey: a.privateKey
             })) 
         });
+    } catch (e) {
+        // ...
+    }
+});
+
+// =====================
+// 工具函数
+// =====================
+function saveAccounts(accounts: typeof demoState.accounts) {
+    try {
+        fs.writeFileSync(ACCOUNTS_FILE, JSON.stringify(accounts, null, 2));
+    } catch (e) {
+        console.error('⚠️ Failed to save accounts to disk:', e);
+    }
+}
+
+app.post('/api/add-account', async (req, res) => {
+    try {
+        console.log('➕ Adding new random account...');
+        const newPrivateKey = generatePrivateKey();
+        const newAccount = privateKeyToAccount(newPrivateKey);
+        
+        const newAccountData = {
+            name: `User ${demoState.accounts.length + 1}`,
+            privateKey: newPrivateKey,
+            address: newAccount.address
+        };
+        
+        demoState.accounts.push(newAccountData);
+        saveAccounts(demoState.accounts);
+        
+        console.log(`   ✅ Created ${newAccountData.name}: ${newAccountData.address}`);
+        
+        res.json({ success: true, account: newAccountData });
     } catch (error) {
-        console.error('❌ Error generating accounts:', error);
+        console.error('❌ Error adding account:', error);
         res.status(500).json({ success: false, error: (error as Error).message });
     }
 });
@@ -134,6 +175,16 @@ app.post('/api/fund-accounts', async (req, res) => {
         const ethErrors = [];
         for (let i = 0; i < demoState.accounts.length; i++) {
             const account = demoState.accounts[i];
+            
+            // Check current ETH balance
+            const currentEth = await publicClient.getBalance({ address: account.address });
+            const targetEthWei = parseEther(ethAmount || '0.05');
+            
+            if (currentEth >= targetEthWei) {
+                console.log(`      [${i + 1}/${demoState.accounts.length}] Skipping ${account.name}: has ${currentEth} ETH (Target: ${targetEthWei})`);
+                continue;
+            }
+
             console.log(`      [${i + 1}/${demoState.accounts.length}] Funding ${account.name} (${account.address})...`);
             
             const result = await FundingManager.fundWithETH({
@@ -156,6 +207,21 @@ app.post('/api/fund-accounts', async (req, res) => {
         const tokenErrors = [];
         for (let i = 0; i < demoState.accounts.length; i++) {
             const account = demoState.accounts[i];
+
+            // Check current GToken balance
+            const currentGToken = await publicClient.readContract({
+                address: process.env.GTOKEN_ADDR as Address,
+                abi: erc20Abi,
+                functionName: 'balanceOf',
+                args: [account.address]
+            }) as bigint;
+            const targetTokenWei = parseEther(tokenAmount || '100');
+
+            if (currentGToken >= targetTokenWei) {
+                console.log(`      [${i + 1}/${demoState.accounts.length}] Skipping ${account.name}: has ${currentGToken} GToken (Target: ${targetTokenWei})`);
+                continue;
+            }
+
             console.log(`      [${i + 1}/${demoState.accounts.length}] Funding ${account.name} with GToken...`);
             
             const result = await FundingManager.fundWithToken({
@@ -231,11 +297,7 @@ app.post('/api/launch-community', async (req, res) => {
         });
 
         if (hasRole) {
-            console.log(`   ⚠️  ${selectedAccount.name} already has COMMUNITY role!`);
-            return res.status(400).json({ 
-                success: false, 
-                error: `${selectedAccount.name} already has COMMUNITY role. Please use a different account or exit the role first.` 
-            });
+            console.log(`   ℹ️  ${selectedAccount.name} already has COMMUNITY role. Proceeding to recover/update...`);
         }
 
         const client = createCommunityClient({
