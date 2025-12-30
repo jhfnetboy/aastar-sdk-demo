@@ -828,13 +828,29 @@
                     aaLabel.innerHTML = '<span class="loading"></span> 检查中...';
                     
                     // 这里可以添加检查 AA 是否部署的逻辑
-                    aaLabel.textContent = account.type === 'AA' ? '✅ 已创建(计算地址)' : '❌ 尚未创建';
+                    aaLabel.textContent = account.type === 'AA' ? '✅ Computed (AA)' : '✅ Ready (EOA)';
                     sbtLabel.textContent = '检查中...';
                     
-                    const response = await fetch(`${API_BASE}/get-communities`, { method: 'POST' });
+                    const response = await fetch(`${API_BASE}/get-communities`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ userAddress: account.address })
+                    });
                     const result = await response.json();
-                    // 这里简化逻辑：检查该 EOA 是否在某社区有 SBT (实际上应该检查其 AA 地址)
-                    sbtLabel.textContent = '未持有';
+                    
+                    if (result.success) {
+                        // Find all communities where the user has a role
+                        const joinedCommunities = result.communities.filter(c => c.hasRole);
+                        
+                        if (joinedCommunities.length > 0) {
+                            const names = joinedCommunities.map(c => c.communityData.name || c.accountAddress.slice(0,6)).join(', ');
+                            sbtLabel.innerHTML = `✅ 已持有 (ID: ${joinedCommunities[0].sbtId || 'Active'})<br/><span class="text-xs text-gray-500">Communities: ${names}</span>`;
+                        } else {
+                            sbtLabel.textContent = '❌ 未持有';
+                        }
+                    } else {
+                        sbtLabel.textContent = '❓ 查询失败';
+                    }
                 }
             } catch (error) {
                 console.error('检查状态失败:', error);

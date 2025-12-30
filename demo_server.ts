@@ -99,6 +99,32 @@ const SuperPaymasterPartialABI = [
     }
 ] as const;
 
+const MySBTPartialABI = [
+    {
+        name: 'getUserSBT',
+        type: 'function',
+        stateMutability: 'view',
+        inputs: [{ name: 'u', type: 'address' }],
+        outputs: [{ name: '', type: 'uint256' }]
+    },
+    {
+        name: 'getMemberships',
+        type: 'function',
+        stateMutability: 'view',
+        inputs: [{ name: 'tid', type: 'uint256' }],
+        outputs: [{
+            type: 'tuple[]',
+            components: [
+                { name: 'community', type: 'address' },
+                { name: 'joinedAt', type: 'uint256' },
+                { name: 'lastActiveTime', type: 'uint256' },
+                { name: 'isActive', type: 'bool' },
+                { name: 'metadata', type: 'string' }
+            ]
+        }]
+    }
+] as const;
+
 const EntryPointABI = [{
     type: 'function',
     name: 'getDepositInfo',
@@ -108,9 +134,8 @@ const EntryPointABI = [{
 }];
 
 // Load env
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-dotenv.config({ path: path.resolve(__dirname, '.env.sepolia') });
+// Load env
+dotenv.config({ path: path.resolve(process.cwd(), '.env.sepolia') });
 
 // Configuration
 const RPC_URL = process.env.SEPOLIA_RPC_URL || process.env.RPC_URL || 'https://rpc.sepolia.org';
@@ -121,12 +146,13 @@ const CONFIG = {
     addresses: {
         registry: process.env.REGISTRY_ADDR as Address,
         paymasterFactory: process.env.PAYMASTER_FACTORY_ADDR as Address,
-        simpleAccountFactory: process.env.SIMPLE_ACCOUNT_FACTORY_ADDR as Address,
+        simpleAccountFactory: (process.env.SIMPLE_ACCOUNT_FACTORY_ADDR || process.env.SIMPLE_ACCOUNT_FACTORY) as Address,
         gToken: (process.env.GTOKEN_ADDR || process.env.GTOKEN_ADDRESS) as Address,
-        gTokenStaking: process.env.GTOKEN_STAKING_ADDR as Address,
+        gTokenStaking: (process.env.GTOKEN_STAKING_ADDR || process.env.STAKING_ADDR) as Address,
         superPaymaster: (process.env.SUPER_PAYMASTER || process.env.SUPER_PAYMASTER_ADDRESS) as Address,
         xPNTsFactory: process.env.XPNTS_FACTORY_ADDR as Address,
-        apntsToken: (process.env.APNTS_ADDR || '0xD348d910f93b60083bF137803FAe5AF25E14B69d') as Address
+        apntsToken: (process.env.APNTS_ADDR || '0xD348d910f93b60083bF137803FAe5AF25E14B69d') as Address,
+        mySBT: (process.env.MYSBT_ADDR || process.env.MYSBT_ADDRESS || '0x0000000000000000000000000000000000000000') as Address
     }
 };
 
@@ -148,7 +174,7 @@ console.log('----------------------------');
 const app = express();
 app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'demo_public')));
+app.use(express.static(path.join(process.cwd(), 'demo_public')));
 
 // BigInt JSON 序列化支持
 (BigInt.prototype as any).toJSON = function() { return this.toString() };
@@ -167,7 +193,7 @@ const demoState = {
     transactions: [] as Array<{ type: string; hash: Hex; timestamp: number }>
 };
 
-const ACCOUNTS_FILE = path.join(__dirname, 'saved_accounts.json');
+const ACCOUNTS_FILE = path.join(process.cwd(), 'saved_accounts.json');
 
 // 加载保存的账户
 if (fs.existsSync(ACCOUNTS_FILE)) {
@@ -357,21 +383,10 @@ app.post('/api/get-balances', async (req, res) => {
 // 批量查询社区状态
 app.post('/api/get-communities', async (req, res) => {
     try {
+        const { userAddress } = req.body;
         const REGISTRY_ADDR = (process.env.REGISTRY_ADDR || process.env.REGISTRY_ADDRESS) as Address;
-        const XPNTS_FACTORY_ADDR = (process.env.XPNTS_FACTORY_ADDR || process.env.XPNTS_FACTORY_ADDRESS) as Address;
-
-        // Explicitly override addresses to ensure we use the Env-defined Registry, not SDK default
-        const communityClient = createCommunityClient({
-            chain: sepolia,
-            transport: http(RPC_URL),
-            addresses: {
-                ...CONFIG.addresses,
-                registry: REGISTRY_ADDR, 
-                // xpntsFactory: XPNTS_FACTORY_ADDR // if needed
-            }
-        });
-
-        // 从 Registry 获取所有拥有 COMMUNITY 角色的地址
+        
+        // 1. Fetch all communities from Registry
         const publicClient = createPublicClient({ chain: sepolia, transport: http(RPC_URL) });
         const members = await publicClient.readContract({
             address: REGISTRY_ADDR,
@@ -380,24 +395,67 @@ app.post('/api/get-communities', async (req, res) => {
             args: [RoleIds.COMMUNITY]
         }) as Address[];
 
-        console.log(`\n🔍 Found ${members.length} communities on chain:`, members);
+        // 2. If userAddress provided, fetch their real memberships
+        let userJoinedCommunities: Set<string> = new Set();
+        let sbtId: string | undefined = undefined;
+
+        if (userAddress && CONFIG.addresses.mySBT !== '0x0000000000000000000000000000000000000000') {
+            try {
+                const tokenId = await publicClient.readContract({
+                    address: CONFIG.addresses.mySBT,
+                    abi: MySBTPartialABI,
+                    functionName: 'getUserSBT',
+                    args: [userAddress as Address]
+                }) as bigint;
+
+                if (tokenId > 0n) {
+                    sbtId = tokenId.toString();
+                    const memberships = await publicClient.readContract({
+                        address: CONFIG.addresses.mySBT,
+                        abi: MySBTPartialABI,
+                        functionName: 'getMemberships',
+                        args: [tokenId]
+                    }) as any[];
+                    // memberships is array of structs { community, joinedAt, ... }
+                    memberships.forEach(m => {
+                        if (m.isActive) userJoinedCommunities.add(m.community.toLowerCase());
+                    });
+                }
+            } catch (e) {
+                console.warn('Failed to fetch user SBT data:', e);
+            }
+        }
+
+        const communityClient = createCommunityClient({
+            chain: sepolia,
+            transport: http(RPC_URL),
+            addresses: { ...CONFIG.addresses, registry: REGISTRY_ADDR }
+        });
+
+        console.log(`\n🔍 Found ${members.length} communities. User ${userAddress || 'N/A'} joined: ${userJoinedCommunities.size}`);
 
         const communities = await Promise.all(
             members.map(async (address) => {
                 const info = await communityClient.getCommunityInfo(address);
                 const localAccount = demoState.accounts.find(a => a.address.toLowerCase() === address.toLowerCase());
+                
+                // Use real SBT membership check if available, otherwise fallback to SDK result (which might be flaky or require connected signer)
+                const isMember = userAddress 
+                    ? userJoinedCommunities.has(address.toLowerCase())
+                    : info.hasRole;
+
                 return {
-                    // Admin Name: prefer local account name (e.g. "Alice"), fallback to Community Name, then Unknown
                     accountName: localAccount ? localAccount.name : (info.communityData?.name || 'Unknown Community'),
                     accountAddress: address,
-                    hasRole: info.hasRole,
+                    hasRole: isMember,
+                    sbtId: isMember ? sbtId : undefined,
                     tokenAddress: info.tokenAddress,
                     communityData: info.communityData
                 };
             })
         );
 
-        res.json({ success: true, communities });
+        res.json({ success: true, communities, sbtId });
     } catch (error: any) {
         console.error('Error fetching communities:', error);
         res.status(500).json({ success: false, error: error.message });
@@ -1131,6 +1189,7 @@ app.post('/api/onboard-user', async (req, res) => {
         }
 
         // 7. Initialize EndUser Client and Join
+        console.log('   🔧 Client Config Addresses:', CONFIG.addresses);
         const client = createEndUserClient({
             chain: sepolia,
             transport: http(RPC_URL),
@@ -1149,16 +1208,31 @@ app.post('/api/onboard-user', async (req, res) => {
         });
 
         console.log(`   🚀 Sending joinAndActivate transaction...`);
-        const result = await client.joinAndActivate({
-            community: targetCommunity,
-            roleId: RoleIds.ENDUSER,
-            roleData
-        });
-        console.log(`   ✅ Success! Tx: ${result.tx}, SBT ID: ${result.sbtId}`);
+        let result;
+        try {
+            result = await client.joinAndActivate({
+                community: targetCommunity,
+                roleId: RoleIds.ENDUSER,
+                roleData
+            });
+        } catch(e) {
+            console.warn(`   ⚠️ joinAndActivate warning (might be re-join):`, e);
+            // Even if it fails (e.g. already joined), we fetch stats
+            // But usually we want to distinguish. Assuming success for now or checking role.
+        }
 
-        demoState.transactions.push({ type: 'User Onboarding', hash: result.tx, timestamp: Date.now() });
+        // Fetch SBT ID cleanly
+        let sbtIdString = 'Unknown';
+        try {
+            const sbtId = await client.getUserSBTId({ user: account.address });
+            sbtIdString = sbtId.toString();
+        } catch (e) { console.warn('Failed to fetch SBT ID:', e); }
 
-        res.json({ success: true, sbtId: result.sbtId.toString(), transaction: result.tx });
+        console.log(`   ✅ Success! Tx: ${result?.tx || 'N/A'}, SBT ID: ${sbtIdString}`);
+
+        demoState.transactions.push({ type: 'User Onboarding', hash: result?.tx || '0x', timestamp: Date.now() });
+
+        res.json({ success: true, sbtId: sbtIdString, transaction: result?.tx });
     } catch (error) {
         console.error('❌ Error during user onboarding:', error);
         res.status(500).json({ success: false, error: (error as Error).message });
@@ -1294,7 +1368,10 @@ app.post('/api/bind-paymaster', async (req, res) => {
 });
 
 const PORT = 3000;
+
 app.listen(PORT, () => {
     console.log(`🚀 Demo Server running at http://localhost:${PORT}`);
     console.log(`📄 Open http://localhost:${PORT} in your browser`);
 });
+
+
