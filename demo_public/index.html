@@ -1073,10 +1073,23 @@
                     
                     if (!silent) {
                         const listDiv = document.getElementById('communities-list');
-                        if (listDiv) { // Only update if element exists (Step 2 might be hidden)
+                        if (listDiv) {
                             renderCommunitiesList(res.communities);
                         }
+                        
+                        // Populate Community Admin Select (Step 2)
+                        // Note: This selects the ADMIN account to operate the community
                         populateAccountSelect('community-account-select');
+
+                        // Populate User Onboarding Community Select (Step 4)
+                        // Note: This selects the COMMUNITY to join
+                        const onboardSelect = document.getElementById('onboard-community-select');
+                        if (onboardSelect) {
+                            onboardSelect.innerHTML = '<option value="">请选择社区...</option>' + 
+                                res.communities.filter(c => c.hasRole).map(c => 
+                                    `<option value="${c.accountAddress}">${c.communityData?.name || 'Community'} (${c.accountAddress.slice(0,6)}...)</option>`
+                                ).join('');
+                        }
                     }
                 }
             } catch (e) { console.error(e); if (!silent) showToast('加载社区失败', 'error'); }
@@ -1123,6 +1136,7 @@
         // 填充账户选择器
         function populateAccountSelect(selectId) {
             const select = document.getElementById(selectId);
+            if (!select) return;
             select.innerHTML = '<option value="">请选择账户...</option>' +
                 accountsData.map((acc, idx) => `<option value="${idx}">${acc.name} (${acc.address.slice(0, 10)}...)</option>`).join('');
         }
@@ -1145,6 +1159,11 @@
                         `<option value="${a.address}">${a.name} (${a.address.slice(0,6)}...)</option>`
                     ).join('');
                     if(accountsData.length > 0) globalSelect.value = accountsData[0].address;
+
+                    // Fix: Populate Action Dropdowns
+                    populateAccountSelect('community-account-select');
+                    populateAccountSelect('operator-account-select');
+                    populateAccountSelect('user-account-select');
 
                     renderAccountsTable();
                     await refreshBalances();
