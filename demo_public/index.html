@@ -459,7 +459,7 @@
             <div class="step" onclick="switchStep(0)">
                 <div class="step-header">
                     <span class="step-icon">🏠</span>
-                    <span class="step-title">My Dashboard (我的)</span>
+                    <span class="step-title">My Dashboard</span>
                     <span class="step-status"></span>
                 </div>
             </div>
@@ -467,39 +467,39 @@
             <div class="step active" onclick="switchStep(1)">
                 <div class="step-header">
                     <span class="step-icon">👥</span>
-                    <span class="step-title">账户管理</span>
-                    <span class="step-status" id="step1-status">⏳</span>
+                    <span class="step-title">Accounts</span>
+                    <span class="step-status" id="step1-status"></span>
                 </div>
             </div>
 
             <div class="step" onclick="switchStep(2)">
                 <div class="step-header">
                     <span class="step-icon">🏛️</span>
-                    <span class="step-title">启动社区</span>
-                    <span class="step-status" id="step2-status">⏳</span>
+                    <span class="step-title">Communities</span>
+                    <span class="step-status" id="step2-status"></span>
                 </div>
             </div>
 
             <div class="step" onclick="switchStep(3)">
                 <div class="step-header">
                     <span class="step-icon">⚙️</span>
-                    <span class="step-title">运营商</span>
-                    <span class="step-status" id="step3-status">⏳</span>
+                    <span class="step-title">Operators</span>
+                    <span class="step-status" id="step3-status"></span>
                 </div>
             </div>
 
             <div class="step" onclick="switchStep(4)">
                 <div class="step-header">
                     <span class="step-icon">👤</span>
-                    <span class="step-title">用户入驻</span>
-                    <span class="step-status" id="step4-status">⏳</span>
+                    <span class="step-title">User Onboarding</span>
+                    <span class="step-status" id="step4-status"></span>
                 </div>
             </div>
 
             <div class="step" onclick="showMetadata()" style="margin-top: 20px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 20px;">
                 <div class="step-header">
                     <span class="step-icon">ℹ️</span>
-                    <span class="step-title">系统信息</span>
+                    <span class="step-title">System Info</span>
                 </div>
             </div>
         </div>
@@ -563,8 +563,8 @@
             <!-- Step 1: 账户管理 -->
             <div id="step1-content">
                 <div class="content-header">
-                    <h1 class="content-title">👥 账户管理</h1>
-                    <p class="content-subtitle">查看和管理演示账户，检查余额状态</p>
+                    <h1 class="content-title">Accounts</h1>
+                    <p class="content-subtitle">Manage demo accounts and check balances.</p>
                 </div>
 
                 <div class="card">
@@ -912,19 +912,27 @@
                      const registered = c.isRegistered; // from API
                      return `
                         <div class="list-card">
-                            <div class="list-card-title">${c.communityData?.name || 'Unknown Community'}</div>
-                            <div class="list-card-detail text-xs text-gray-400">${c.address}</div>
-                            <div class="mt-2 text-sm">
-                                <div class="flex justify-between">
-                                    <span>Registry Status:</span>
-                                    <span class="${registered ? 'text-green-400' : 'text-red-400'}">${registered ? '✅ Registered' : '❌ Not Registered'}</span>
-                                </div>
-                                <div class="flex justify-between mt-1">
-                                    <span>xPNTs Token:</span>
-                                    <span class="${hasToken ? 'text-green-400' : 'text-red-400'}">${hasToken ? '✅ Deployed' : '❌ Not Deployed'}</span>
-                                </div>
+                            <div class="list-card-title">
+                                ${c.communityData?.name || c.accountName || 'Unknown Community'}
+                                <span class="badge" style="background: #dcfce7; color: #166534; font-size: 0.7em; margin-left: 8px;">✅ Registered</span>
                             </div>
-                            ${!hasToken ? `<button onclick="deployToken('${c.accountAddress}', '${c.communityData?.name || 'Community'}')" class="mt-2 bg-blue-900 hover:bg-blue-700 text-white px-2 py-1 rounded text-xs w-full">Deploy xPNTs</button>` : ''}
+                            <div class="list-card-detail text-xs text-gray-400">
+                                <span class="font-bold">Address:</span> ${c.accountAddress}
+                            </div>
+                            <div class="mt-2 text-sm">
+                                <div class="flex justify-between mt-1">
+                                    <span class="text-gray-500">xPNTs Token:</span>
+                                    <span class="${hasToken ? 'text-green-400 font-mono' : 'text-gray-400'}">
+                                        ${hasToken ? `✅ ${c.tokenAddress.slice(0,6)}...${c.tokenAddress.slice(-4)}` : '❌ Not Deployed'}
+                                    </span>
+                                </div>
+                                ${hasToken ? `
+                                <div class="flex justify-between mt-1 text-xs">
+                                     <span class="text-gray-500">Token Type:</span>
+                                     <span class="text-gray-300">Standard xPNTs (ERC20)</span>
+                                </div>` : ''}
+                            </div>
+                            ${!hasToken ? `<button onclick="deployToken('${c.accountAddress}', '${c.communityData?.name || 'Community'}')" class="mt-2 bg-blue-900 hover:bg-blue-700 text-white px-2 py-1 rounded text-xs w-full">🚀 Deploy xPNTs</button>` : ''}
                         </div>
                      `;
                  }).join('');
@@ -937,7 +945,7 @@
             // Filter V4 Paymasters where operator == adminAddr
             // And also check SuperPaymaster (if they are one)
             const myV4 = (window.networkData.v4 || []).filter(p => p.operator.toLowerCase() === adminAddr.toLowerCase());
-            const mySuper = (window.networkData.super || []).filter(p => p.address.toLowerCase() === adminAddr.toLowerCase()); // Super uses address as identity usually
+            const mySuper = (window.networkData.super || []).filter(p => p.operator.toLowerCase() === adminAddr.toLowerCase());
             
             let pmHtml = '';
             
@@ -947,38 +955,67 @@
                     <div class="list-card">
                         <div class="list-card-title">📦 Paymaster V4</div>
                         <div class="list-card-detail text-xs text-gray-400">${p.address}</div>
-                         <div class="mt-2 text-sm">
-                             <div class="flex justify-between">
-                                <span>Version:</span>
-                                <span>${p.version}</span>
-                             </div>
-                             <div class="flex justify-between mt-1">
-                                 <span>Supported Tokens:</span>
-                                 <span>${(p.supportedTokens||[]).length}</span>
-                             </div>
+                        <div style="border-top: 1px solid #333; padding-top: 10px; margin-top: 10px;">
+                            <div class="flex justify-between items-center">
+                                <span class="text-gray-400 font-bold text-xs uppercase">Linked Tokens</span>
+                                <button onclick="openBindModal('${p.operator}', '${p.address}')" class="text-xs bg-blue-600 hover:bg-blue-500 text-white px-2 py-1 rounded transition-colors shadow-sm">
+                                    ➕ Bind New Token
+                                </button>
+                            </div>
+
+                            <div class="mt-2 space-y-1">
+                                ${p.supportedTokens && p.supportedTokens.length > 0 ? p.supportedTokens.map(st => {
+                                    /* Fix: Force Metadata Lookup or Fallback */
+                                    let tokenName = (window.networkData.constants && window.networkData.constants.tokens && window.networkData.constants.tokens[st.toLowerCase()]);
+                                    if (!tokenName) {
+                                         // Fallback: Check if it's the known xPNTs or GToken from env
+                                         // (Simplified: Just label as Token)
+                                         tokenName = 'Token';
+                                    }
+                                    /* User Request: Green Check and White Link */
+                                    return `
+                                    <div class="flex justify-between items-center bg-gray-800/50 p-2 rounded border border-gray-700">
+                                        <div class="flex items-center gap-2">
+                                            <span class="text-green-400 text-xs">✅</span>
+                                            <span class="text-sm font-medium text-gray-200">${tokenName}</span>
+                                        </div>
+                                        <a href="https://sepolia.etherscan.io/address/${st}" target="_blank" class="text-xs text-white hover:text-blue-300 hover:underline font-mono" style="color: white !important;">
+                                            ${st.slice(0,6)}...${st.slice(-4)} ↗
+                                        </a>
+                                    </div>`;
+                                }).join('') : '<div class="text-gray-500 text-xs italic py-2 text-center">No tokens linked yet.</div>'}
+                            </div>
                         </div>
-                        <!-- Binding Logic: Check against My Communities -->
-                        ${myComs.map(c => {
-                             if (!c.tokenAddress || c.tokenAddress === '0x0000000000000000000000000000000000000000') return '';
-                             // Check if this Paymaster supports this token
-                             const isBound = (p.supportedTokens || []).map(t=>t.toLowerCase()).includes(c.tokenAddress.toLowerCase());
-                             if (isBound) {
-                                 return `<div class="mt-2 text-xs text-green-400 border border-green-900 bg-green-900/20 p-1 rounded text-center">✅ Bound to ${c.communityData?.name}</div>`;
-                             } else {
-                                 return `<button onclick="bindPaymaster('${c.tokenAddress}', '${c.accountAddress}')" class="mt-2 bg-purple-900 hover:bg-purple-700 text-white px-2 py-1 rounded text-xs w-full">Bind to ${c.communityData?.name}</button>`;
-                             }
-                        }).join('')}
                     </div>
                 `).join('');
             }
+
 
             if (mySuper.length > 0) {
                  pmHtml += mySuper.map(p => `
                     <div class="list-card border-yellow-700/50">
                         <div class="list-card-title text-yellow-500">⚡ SuperPaymaster Operator</div>
-                         <div class="mt-2 text-xs text-center text-gray-400">
-                            (Universal Access)
+                         <div class="list-card-detail mt-1">
+                            <span class="text-gray-500 text-xs font-bold uppercase">Contract:</span>
+                             <div class="code-box break-all text-xs" style="margin-top:2px;">
+                                <a href="https://sepolia.etherscan.io/address/${p.address}" target="_blank" style="color: white; text-decoration: underline;">${p.address}</a>
+                            </div>
                         </div>
+                        
+                        <div class="list-card-detail mt-2 bg-yellow-900/10 p-2 rounded border border-yellow-900/30">
+                            <div class="flex justify-between items-center">
+                                <span class="text-gray-400 text-xs uppercase font-bold">aPNTs Balance</span>
+                                <span class="text-yellow-400 font-mono font-bold text-sm">${(BigInt(p.balance || 0) / 1000000000000000000n).toString()} aPNTs</span>
+                            </div>
+                             <div class="flex justify-between items-center mt-1">
+                                <span class="text-gray-400 text-xs uppercase font-bold">Spent</span>
+                                <span class="text-gray-500 font-mono text-xs">${(BigInt(p.totalSpent || 0) / 1000000000000000000n).toString()} aPNTs</span>
+                            </div>
+                        </div>
+
+                         <div class="mt-3 flex gap-2">
+                             <button onclick="openDepositModal('${p.operator}')" class="flex-1 bg-yellow-700 hover:bg-yellow-600 text-white px-3 py-1.5 rounded text-xs font-bold transition-colors shadow-sm border border-yellow-600">
+                                💰 Deposit aPNTs
                     </div>
                  `).join('');
             }
@@ -989,6 +1026,43 @@
             
             pmDiv.innerHTML = pmHtml;
         }
+
+        // Deposit Logic
+        function openDepositModal(op) {
+            document.getElementById('deposit-modal-op').value = op;
+            document.getElementById('deposit-amount-input').value = '';
+            document.getElementById('deposit-modal').style.display = 'flex';
+        }
+        
+        async function submitDeposit() {
+            const op = document.getElementById('deposit-modal-op').value;
+            const amount = document.getElementById('deposit-amount-input').value;
+            
+            if (!amount || amount <= 0) return showToast('Invalid Amount', 'error');
+            
+            document.getElementById('deposit-modal').style.display = 'none';
+            showToast('Initiating Deposit...', 'info');
+            
+            try {
+                const res = await (await fetch(`${API_BASE}/paymaster/deposit`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ operatorAddr: op, amount })
+                })).json();
+                
+                if (res.success) {
+                    showToast('Deposit Successful! 💰', 'success');
+                    setTimeout(loadMyDashboard, 2000);
+                } else {
+                    showToast('Deposit Failed: ' + res.error, 'error');
+                }
+            } catch (e) {
+                showToast('Network Error', 'error');
+            }
+        }
+    
+        // ... existing scripts (openBindModal etc) ...
+
 
         async function loadCommunities(silent = false) {
             try {
@@ -1237,6 +1311,39 @@
         btn.innerText = originalText; btn.disabled = false;
     }
 
+    async function addCustomToken(operatorAddr, pmAddr) {
+        const tokenAddr = prompt("Enter ERC20 Token Address to Bind:");
+        if (!tokenAddr) return;
+        if (!tokenAddr.startsWith('0x') || tokenAddr.length !== 42) {
+            return showToast('Invalid Address format', 'error');
+        }
+        confirmBind(tokenAddr, operatorAddr, pmAddr);
+    }
+
+    async function confirmBind(tokenAddr, operatorAddr, pmAddr) {
+        if(!confirm(`❓ Confirm Binding\n\nPaymaster: ${pmAddr.slice(0,8)}...\nToken: ${tokenAddr.slice(0,8)}...`)) return;
+
+        const btn = event.target; 
+        const originalText = btn.innerHTML;
+        btn.innerHTML = '⏳ Binding...'; btn.disabled = true;
+
+        try {
+            const res = await (await fetch(`${API_BASE}/bind-paymaster`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ paymasterAddress: pmAddr, tokenAddress: tokenAddr, operatorAddress: operatorAddr })
+            })).json();
+            
+            if (res.success) {
+                showToast(`✅ Bound Successfully! Tx: ${res.tx}`);
+                setTimeout(() => loadOperators(), 2000); // Reload status
+            } else {
+                showToast("Bind Failed: " + res.error, "error");
+            }
+        } catch (e) { showToast(e.message, "error"); }
+        btn.innerHTML = originalText; btn.disabled = false;
+    }
+
     async function bindPaymaster(tokenAddr, communityOwnerAddr) {
         const adminAddr = document.getElementById('global-admin-select').value;
         if (!adminAddr) return showToast('Please select a Global Admin first', 'error');
@@ -1290,7 +1397,7 @@
             try {
                 const res = await (await fetch(`${API_BASE}/get-network-operators`, { method: 'POST' })).json();
                 if (res.success) {
-                    window.networkData = { v4: res.v4, super: res.super }; // Store for binding logic
+                    window.networkData = { v4: res.v4, super: res.super, constants: res.constants }; // Store for binding logic
 
                     let html = '';
 
@@ -1304,6 +1411,22 @@
                                     <span class="badge badge-success">Deployed</span>
                                 </div>
                                 <div class="list-card-detail">
+                                    <!-- 1. Linked Tokens List -->
+                                    <div style="margin-top: 8px;">
+                                        <span class="text-xs font-bold text-gray-500">Linked Tokens:</span>
+                                        <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px;">
+                                            ${o.supportedTokens && o.supportedTokens.length > 0 ? o.supportedTokens.map(st => {
+                                                const tokenName = (window.networkData.constants && window.networkData.constants.tokens && window.networkData.constants.tokens[st.toLowerCase()]) || 'Token';
+                                                return `<span class="badge" style="background: #dcfce7; color: #166534; padding: 4px 8px; border: 1px solid #bbf7d0; display: inline-flex; align-items: center;">
+                                                    ✅ ${tokenName} <span style="opacity:0.6; margin-left:4px; font-size:0.8em">(${st.slice(0,6)}...)</span>
+                                                </span>`;
+                                            }).join('') : '<span class="text-gray-400 text-xs italic">No tokens linked</span>'}
+                                        </div>
+                                    </div>
+
+
+                                </div>
+                                <div class="list-card-detail mt-3" style="border-top: 1px solid #eee; padding-top: 8px;">
                                     <span class="text-gray-600 font-bold">Paymaster Address:</span>
                                     <div class="code-box break-all text-xs" style="margin-top:2px;">
                                         <a href="https://sepolia.etherscan.io/address/${o.address}" target="_blank" style="color: white; text-decoration: underline;">${o.address}</a>
@@ -1314,12 +1437,6 @@
                                     <div class="code-box break-all text-xs" style="margin-top:2px;">
                                         <a href="https://sepolia.etherscan.io/address/${o.operator}" target="_blank" style="color: white; text-decoration: underline;">${o.operator}</a>
                                         ${o.operatorName ? `<br/><span class="text-gray-500">(${o.operatorName})</span>` : ''}
-                                    </div>
-                                </div>
-                                <div class="list-card-detail mt-2">
-                                    <span class="text-gray-600 font-bold">Supported Token (xPNTs):</span>
-                                    <div style="margin-top:2px; font-family:monospace; color:#a8d1ff">
-                                        ${o.tokens && o.tokens.length > 0 ? o.tokens.map(t => `<a href="https://sepolia.etherscan.io/address/${t}" target="_blank" style="color: inherit;">${t.slice(0,10)}...</a>`).join(', ') : '<span style="color:#f87171">Not Initialized / None</span>'}
                                     </div>
                                 </div>
                             </div>
@@ -1467,5 +1584,99 @@
             document.getElementById('metadata-modal').style.display = 'none';
         }
     </script>
+    <!-- Bind Token Modal -->
+    <div id="bind-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:9999; align-items:center; justify-content:center; backdrop-filter: blur(2px);">
+        <div style="background:#1f2937; padding:24px; border-radius:12px; width:420px; border: 1px solid #374151; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);">
+            <h3 style="font-size:1.25rem; font-weight:bold; color:white; margin-bottom:16px;">🔗 Bind New Token</h3>
+            <p style="color:#9ca3af; font-size:0.875rem; margin-bottom:20px;">
+                Enable this Paymaster to accept gas payments in a specific ERC20 token.
+            </p>
+
+            <input type="hidden" id="bind-modal-op">
+            <input type="hidden" id="bind-modal-pm">
+
+            <div style="margin-bottom:16px;">
+                <label style="display:block; text-sm; font-weight:500; color:#d1d5db; margin-bottom:6px;">Token Address</label>
+                <input type="text" id="bind-token-input" placeholder="0x..." 
+                    style="width:100%; background:#111827; border:1px solid #4b5563; color:white; padding:10px; border-radius:6px; font-family:monospace;">
+            </div>
+
+            <!-- Quick Select -->
+            <div style="display:flex; gap:8px; margin-bottom:24px;">
+                <button onclick="fillBindInput('GToken')" class="text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 px-2 py-1 rounded border border-gray-600">Use GToken</button>
+                <button onclick="fillBindInput('xPNTs')" class="text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 px-2 py-1 rounded border border-gray-600">Use xPNTs</button>
+            </div>
+
+            <div style="display:flex; justify-content:flex-end; gap:12px;">
+                <button onclick="closeBindModal()" style="padding:8px 16px; border-radius:6px; background:transparent; color:#9ca3af; border:1px solid #4b5563; cursor:pointer;">Cancel</button>
+                <button onclick="submitBindFromModal()" style="padding:8px 16px; border-radius:6px; background:#2563eb; color:white; border:none; font-weight:500; cursor:pointer;">Confirm Bind</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Modal Logic
+        function openBindModal(op, pm) {
+            document.getElementById('bind-modal-op').value = op;
+            document.getElementById('bind-modal-pm').value = pm;
+            document.getElementById('bind-token-input').value = '';
+            document.getElementById('bind-modal').style.display = 'flex';
+        }
+
+        function closeBindModal() {
+            document.getElementById('bind-modal').style.display = 'none';
+        }
+
+        function fillBindInput(type) {
+            const tokens = window.networkData?.constants?.tokens || {};
+            let addr = '';
+            for (let [k, v] of Object.entries(tokens)) {
+                if (v === type) addr = k;
+            }
+            if(addr) document.getElementById('bind-token-input').value = addr;
+            else alert(type + ' address not found in metadata');
+        }
+
+        async function submitBindFromModal() {
+            const op = document.getElementById('bind-modal-op').value;
+            const pm = document.getElementById('bind-modal-pm').value;
+            const token = document.getElementById('bind-token-input').value.trim();
+
+            if (!token.startsWith('0x') || token.length !== 42) {
+                return showToast('Invalid Token Address', 'error');
+            }
+
+            closeBindModal();
+            // Call existing logic
+            // Use a slight delay to allow modal to close
+            setTimeout(() => confirmBind(token, op, pm), 100); 
+        }
+    </script>
+    <!-- Deposit Modal -->
+    <div id="deposit-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:9999; align-items:center; justify-content:center; backdrop-filter: blur(2px);">
+        <div style="background:#1f2937; padding:24px; border-radius:12px; width:380px; border: 1px solid #374151; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);">
+            <h3 style="font-size:1.25rem; font-weight:bold; color:white; margin-bottom:16px;">💰 Deposit aPNTs</h3>
+            <p style="color:#9ca3af; font-size:0.875rem; margin-bottom:20px;">
+                Recharge your credit balance in SuperPaymaster.
+            </p>
+
+            <input type="hidden" id="deposit-modal-op">
+
+            <div style="margin-bottom:24px;">
+                <label style="display:block; text-sm; font-weight:500; color:#d1d5db; margin-bottom:6px;">Amount (aPNTs)</label>
+                <div style="display:flex; gap:8px;">
+                    <input type="number" id="deposit-amount-input" placeholder="Amount (e.g. 10)" step="1"
+                        style="flex:1; background:#111827; border:1px solid #4b5563; color:white; padding:10px; border-radius:6px; font-family:monospace;">
+                    <button onclick="document.getElementById('deposit-amount-input').value='100'" class="px-3 bg-gray-700 text-xs rounded text-gray-300 hover:bg-gray-600">100</button>
+                    <button onclick="document.getElementById('deposit-amount-input').value='1000'" class="px-3 bg-gray-700 text-xs rounded text-gray-300 hover:bg-gray-600">1000</button>
+                </div>
+            </div>
+
+            <div style="display:flex; justify-content:flex-end; gap:12px;">
+                <button onclick="document.getElementById('deposit-modal').style.display='none'" style="padding:8px 16px; border-radius:6px; background:transparent; color:#9ca3af; border:1px solid #4b5563; cursor:pointer;">Cancel</button>
+                <button onclick="submitDeposit()" style="padding:8px 16px; border-radius:6px; background:#eab308; color:black; border:none; font-weight:bold; cursor:pointer;">Confirm Deposit</button>
+            </div>
+        </div>
+    </div>
 </body>
 </html>

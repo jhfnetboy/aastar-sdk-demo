@@ -18,6 +18,7 @@ import {
     type Account, 
     type Hash, 
     type Address,
+    encodeFunctionData,
     getContract,
     parseAbiItem,
     parseAbi,
@@ -109,7 +110,7 @@ const EntryPointABI = [{
 // Load env
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-dotenv.config({ path: path.join(__dirname, '.env.sepolia') });
+dotenv.config({ path: path.resolve(__dirname, '.env.sepolia') });
 
 // Configuration
 const RPC_URL = process.env.SEPOLIA_RPC_URL || process.env.RPC_URL || 'https://rpc.sepolia.org';
@@ -359,10 +360,15 @@ app.post('/api/get-communities', async (req, res) => {
         const REGISTRY_ADDR = (process.env.REGISTRY_ADDR || process.env.REGISTRY_ADDRESS) as Address;
         const XPNTS_FACTORY_ADDR = (process.env.XPNTS_FACTORY_ADDR || process.env.XPNTS_FACTORY_ADDRESS) as Address;
 
+        // Explicitly override addresses to ensure we use the Env-defined Registry, not SDK default
         const communityClient = createCommunityClient({
             chain: sepolia,
             transport: http(RPC_URL),
-            addresses: CONFIG.addresses
+            addresses: {
+                ...CONFIG.addresses,
+                registry: REGISTRY_ADDR, 
+                // xpntsFactory: XPNTS_FACTORY_ADDR // if needed
+            }
         });
 
         // 从 Registry 获取所有拥有 COMMUNITY 角色的地址
@@ -451,17 +457,19 @@ app.post('/api/get-network-operators', async (req, res) => {
                     try {
                         supportedTokens = await publicClient.readContract({
                             address: paymasterAddr,
-                            abi: parseAbiItem('function getSupportedGasTokens() view returns (address[])'),
+                            abi: [ parseAbiItem('function getSupportedGasTokens() view returns (address[])') ],
                             functionName: 'getSupportedGasTokens'
                         }) as any[];
-                    } catch (e) {}
+                    } catch (e: any) {
+                        console.error(`[DEBUG] Failed to fetch supported tokens for ${paymasterAddr}:`, e.message);
+                    }
 
                     // Get Version if possible
                     let version = 'v4';
                     try {
                         version = await publicClient.readContract({
                             address: paymasterAddr,
-                            abi: parseAbiItem('function VERSION() view returns (string)'),
+                            abi: [ parseAbiItem('function VERSION() view returns (string)') ],
                             functionName: 'VERSION'
                         }) as string;
                     } catch (e) {}
@@ -472,7 +480,8 @@ app.post('/api/get-network-operators', async (req, res) => {
                         operator: operator,
                         operatorName: accounts.find(a => a.address.toLowerCase() === operator.toLowerCase())?.name,
                         balance: balance.toString(),
-                        supportedTokens: supportedTokens
+                        supportedTokens: supportedTokens,
+                        bindableTokens: [ (process.env.GTOKEN_ADDR || process.env.GTOKEN_ADDRESS), (process.env.APNTS_ADDR || process.env.APNTS_ADDRESS) ].filter(t => t && t !== '0x0000000000000000000000000000000000000000')
                     });
                 } catch (innerErr) {
                     console.warn(`Error fetching details for paymaster ${paymasterAddr}:`, innerErr);
@@ -541,19 +550,108 @@ app.post('/api/get-network-operators', async (req, res) => {
             };
         }));
 
-        res.json({ 
-            success: true, 
+
+        // Fetch Token Symbols for all encountered tokens
+        const allTokenAddrs = new Set<string>();
+        v4s.forEach(p => p.supportedTokens.forEach((t: string) => allTokenAddrs.add(t.toLowerCase())));
+        // Also check if any super operator tokens needed? (Already handled below)
+
+        const tokenSymbols: Record<string, string> = {
+            [(process.env.GTOKEN_ADDR || process.env.GTOKEN_ADDRESS || '').toLowerCase()]: 'GToken',
+            [(process.env.APNTS_ADDR || process.env.APNTS_ADDRESS || '').toLowerCase()]: 'xPNTs'
+        };
+
+        // Fetch missing symbols
+        await Promise.all(Array.from(allTokenAddrs).map(async (addr) => {
+            if (!tokenSymbols[addr]) {
+                try {
+                    const symbol = await publicClient.readContract({
+                        address: addr as Address,
+                        abi: [ parseAbiItem('function symbol() view returns (string)') ],
+                        functionName: 'symbol'
+                    }) as string;
+                    tokenSymbols[addr] = symbol;
+                } catch (e) {
+                    tokenSymbols[addr] = 'ERC20';
+                }
+            }
+        }));
+
+        res.json({
+            success: true,
             v4: v4s,
             super: superOperators,
             constants: {
-                apntsToken
+                apntsToken,
+                tokens: tokenSymbols
             }
         });
-    } catch (error: any) {
-        console.error('Error fetching network operators:', error);
-        res.status(500).json({ success: false, error: error.message });
+    } catch (e: any) {
+        console.error('Failed to load operators:', e);
+        res.status(500).json({ success: false, error: e.message });
     }
 });
+
+// Deposit aPNTs to SuperPaymaster
+app.post('/api/paymaster/deposit', async (req, res) => {
+    try {
+        const publicClient = createPublicClient({ chain: sepolia, transport: http(RPC_URL) });
+        const { operatorAddr, amount } = req.body; 
+        
+        const rawAccount = demoState.accounts.find(a => a.address.toLowerCase() === operatorAddr.toLowerCase());
+        if (!rawAccount) throw new Error('Operator account not found locally');
+        
+        // Fix: Convert to Viem Account
+        const account = privateKeyToAccount(rawAccount.privateKey as `0x${string}`);
+
+        const walletClient = createWalletClient({
+            account: account, // Correct Viem account
+            chain: sepolia,
+            transport: http(RPC_URL)
+        });
+
+        // 1. Get APNTS Token
+        const apntsToken = await publicClient.readContract({
+             address: (process.env.SUPER_PAYMASTER_ADDR || process.env.SUPER_PAYMASTER) as Address,
+             abi: [ parseAbiItem('function APNTS_TOKEN() view returns (address)') ],
+             functionName: 'APNTS_TOKEN'
+        }) as Address;
+
+        const value = parseEther(amount.toString());
+
+        // 2. Approve
+        console.log(`Approving ${amount} aPNTs for SuperPaymaster...`);
+        const approveHash = await walletClient.writeContract({
+            address: apntsToken,
+            abi: [ parseAbiItem('function approve(address spender, uint256 value) external returns (bool)') ],
+            functionName: 'approve',
+            args: [(process.env.SUPER_PAYMASTER_ADDR || process.env.SUPER_PAYMASTER) as Address, value],
+            chain: sepolia,
+            account: account 
+        });
+        await publicClient.waitForTransactionReceipt({ hash: approveHash });
+
+        // 3. Deposit
+        console.log(`Depositing ${amount} aPNTs...`);
+        const depositHash = await walletClient.writeContract({
+            address: (process.env.SUPER_PAYMASTER_ADDR || process.env.SUPER_PAYMASTER) as Address,
+            abi: [ parseAbiItem('function deposit(uint256 amount) external') ],
+            functionName: 'deposit',
+            args: [value],
+            chain: sepolia,
+            account: account
+        });
+        
+        await publicClient.waitForTransactionReceipt({ hash: depositHash });
+        console.log('Deposit confirmed:', depositHash);
+
+        res.json({ success: true, tx: depositHash });
+    } catch (e: any) {
+        console.error('Deposit failed:', e);
+        res.status(500).json({ success: false, error: e.message });
+    }
+});
+
 
 // 批量查询运营商状态
 app.post('/api/get-operators', async (req, res) => {
@@ -820,9 +918,10 @@ app.post('/api/setup-operator', async (req, res) => {
     try {
         console.log('\n⚙️ Setting up operator...');
         const { accountIndex, type } = req.body;
-        const account = privateKeyToAccount(demoState.accounts[accountIndex || 1].privateKey);
+        const targetIndex = accountIndex !== undefined ? accountIndex : 1;
+        const account = privateKeyToAccount(demoState.accounts[targetIndex].privateKey);
 
-        console.log(`   Operator: ${demoState.accounts[accountIndex || 1].name} (${account.address})`);
+        console.log(`   Operator: ${demoState.accounts[targetIndex].name} (${account.address})`);
         console.log(`   Type: ${type || 'super'}`);
 
         const operatorClient = createOperatorClient({
@@ -858,7 +957,17 @@ app.post('/api/setup-operator', async (req, res) => {
                 // We can't return the tx hash of deployment since didn't deploy, but we can treat as success
                 txs = [];
             } else {
-                const tx = await operatorClient.deployPaymasterV4();
+                console.log('   SDK: Deploying Paymaster V4 (v4.2) with initialization...');
+                
+                // Encode initialize(owner) for V4.2 Clone
+                const initAbi = parseAbi(['function initialize(address) external']);
+                const initData = encodeFunctionData({
+                    abi: initAbi,
+                    functionName: 'initialize',
+                    args: [account.address]
+                });
+
+                const tx = await operatorClient.deployPaymasterV4({ version: 'v4.2', initData });
                 txs = [tx];
             }
         } else {
@@ -886,7 +995,8 @@ app.post('/api/setup-operator', async (req, res) => {
 app.post('/api/onboard-user', async (req, res) => {
     try {
         const { accountIndex } = req.body;
-        const accountData = demoState.accounts[accountIndex || 2];
+        const targetIndex = accountIndex !== undefined ? accountIndex : 2;
+        const accountData = demoState.accounts[targetIndex];
         const account = privateKeyToAccount(accountData.privateKey);
 
         const REGISTRY_ADDR = (process.env.REGISTRY_ADDR || process.env.REGISTRY_ADDRESS) as Address;
@@ -1103,11 +1213,12 @@ app.get('/api/state', (req, res) => {
 app.post('/api/deploy-token', async (req, res) => {
     try {
         const { accountAddress, name, symbol, communityName } = req.body;
-        const account = demoState.accounts.find(a => a.address === accountAddress);
-        if (!account) throw new Error('Account not found');
+        const accountData = demoState.accounts.find(a => a.address === accountAddress);
+        if (!accountData) throw new Error('Account not found');
+        const account = privateKeyToAccount(accountData.privateKey);
 
         const client = createWalletClient({
-            account: account as any,
+            account,
             chain: sepolia,
             transport: http(RPC_URL)
         }).extend(publicActions);
@@ -1146,11 +1257,12 @@ app.post('/api/deploy-token', async (req, res) => {
 app.post('/api/bind-paymaster', async (req, res) => {
     try {
         const { paymasterAddress, tokenAddress, operatorAddress } = req.body;
-        const account = demoState.accounts.find(a => a.address.toLowerCase() === operatorAddress.toLowerCase());
-        if (!account) throw new Error('Operator account not found');
+        const accountData = demoState.accounts.find(a => a.address.toLowerCase() === operatorAddress.toLowerCase());
+        if (!accountData) throw new Error('Operator account not found');
+        const account = privateKeyToAccount(accountData.privateKey);
 
         const client = createWalletClient({
-            account: account as any,
+            account,
             chain: sepolia,
             transport: http(RPC_URL)
         }).extend(publicActions);
