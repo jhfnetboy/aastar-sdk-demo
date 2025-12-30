@@ -619,17 +619,17 @@ app.post('/api/paymaster/deposit', async (req, res) => {
 
         const value = parseEther(amount.toString());
 
-        // 2. Approve
-        console.log(`Approving ${amount} aPNTs for SuperPaymaster...`);
-        const approveHash = await walletClient.writeContract({
-            address: apntsToken,
-            abi: [ parseAbiItem('function approve(address spender, uint256 value) external returns (bool)') ],
-            functionName: 'approve',
-            args: [(process.env.SUPER_PAYMASTER_ADDR || process.env.SUPER_PAYMASTER) as Address, value],
-            chain: sepolia,
-            account: account 
-        });
-        await publicClient.waitForTransactionReceipt({ hash: approveHash });
+        // 2. Approve (Skipped: User indicates SuperPaymaster is trusted/whitelisted)
+        // console.log(`Approving ${amount} aPNTs for SuperPaymaster...`);
+        // const approveHash = await walletClient.writeContract({
+        //     address: apntsToken,
+        //     abi: [ parseAbiItem('function approve(address spender, uint256 value) external returns (bool)') ],
+        //     functionName: 'approve',
+        //     args: [(process.env.SUPER_PAYMASTER_ADDR || process.env.SUPER_PAYMASTER) as Address, value],
+        //     chain: sepolia,
+        //     account: account 
+        // });
+        // await publicClient.waitForTransactionReceipt({ hash: approveHash });
 
         // 3. Deposit
         console.log(`Depositing ${amount} aPNTs...`);
@@ -994,7 +994,11 @@ app.post('/api/setup-operator', async (req, res) => {
 
 app.post('/api/onboard-user', async (req, res) => {
     try {
-        const { accountIndex } = req.body;
+        const { accountIndex, communityAddress } = req.body;
+        console.log(`\n🚀 [API] /onboard-user called. Index: ${accountIndex}, Community: ${communityAddress}`);
+
+        const publicClient = createPublicClient({ chain: sepolia, transport: http(RPC_URL) });
+
         const targetIndex = accountIndex !== undefined ? accountIndex : 2;
         const accountData = demoState.accounts[targetIndex];
         const account = privateKeyToAccount(accountData.privateKey);
@@ -1006,17 +1010,23 @@ app.post('/api/onboard-user', async (req, res) => {
         const STAKING_ADDR = (process.env.STAKING_ADDR || process.env.STAKING_ADDRESS) as Address;
         const XPNTS_FACTORY_ADDR = (process.env.XPNTS_FACTORY_ADDR || process.env.XPNTS_FACTORY_ADDRESS) as Address;
 
-        if (!demoState.communityAddress || demoState.communityAddress === '0x0000000000000000000000000000000000000000') {
-             demoState.communityAddress = (process.env.COMMUNITY_ADDR || process.env.COMMUNITY_ADDRESS) as Address;
-             if (!demoState.communityAddress) {
-                 return res.status(400).json({ success: false, error: 'Community not launched or configured' });
-             }
+        // 1. Resolve Target Community
+        let targetCommunity = communityAddress as Address;
+        if (!targetCommunity || targetCommunity === '0x0000000000000000000000000000000000000000') {
+             targetCommunity = (demoState.communityAddress || process.env.COMMUNITY_ADDR || process.env.COMMUNITY_ADDRESS) as Address;
+        }
+        
+        if (targetCommunity) demoState.communityAddress = targetCommunity;
+
+        if (!targetCommunity || targetCommunity === '0x0000000000000000000000000000000000000000') {
+            console.error('[Error] No Community Address provided or configured.');
+            return res.status(400).json({ success: false, error: 'Community not launched or configured' });
         }
 
         console.log(`\n🔍 [Debug] Onboarding Check for ${accountData.name} (${accountData.address})`);
-        console.log(`   Target Community: ${demoState.communityAddress}`);
+        console.log(`   Target Community: ${targetCommunity}`);
 
-        // Check if Community has xPNTs Token
+        // 2. Check xPNTs Token
         const factoryAbi = parseAbi(['function getTokenAddress(address) view returns (address)']);
         let tokenAddr = '0x0000000000000000000000000000000000000000';
         try {
@@ -1024,7 +1034,7 @@ app.post('/api/onboard-user', async (req, res) => {
                 address: XPNTS_FACTORY_ADDR,
                 abi: factoryAbi,
                 functionName: 'getTokenAddress',
-                args: [demoState.communityAddress]
+                args: [targetCommunity]
             }) as string;
             console.log(`   Token Address Found: ${tokenAddr}`);
         } catch (e: any) {
@@ -1032,14 +1042,13 @@ app.post('/api/onboard-user', async (req, res) => {
         }
 
         if (!tokenAddr || tokenAddr === '0x0000000000000000000000000000000000000000') {
-             console.warn(`   ⚠️ Community ${demoState.communityAddress} has NO xPNTs Token configured.`);
-             return res.status(400).json({ success: false, error: `Community ${demoState.communityAddress} not fully launched (No xPNTs Token). Please deploy token first.` });
+             console.warn(`   ⚠️ Community ${targetCommunity} has NO xPNTs Token configured.`);
+             return res.status(400).json({ success: false, error: `Community ${targetCommunity} not fully launched (No xPNTs Token). Please deploy token first.` });
         }
 
-        const publicClient = createPublicClient({ chain: sepolia, transport: http(RPC_URL) });
         const walletClient = createWalletClient({ account, chain: sepolia, transport: http(RPC_URL) });
 
-        // --- 核心修复: 自动资助 ETH (用于 AA 部署和交易) ---
+        // 3. Fund ETH (for AA deployment)
         const ethBalance = await publicClient.getBalance({ address: account.address });
         if (ethBalance < parseEther('0.02')) {
             console.log(`   💰 Funding ETH to user ${account.address}...`);
@@ -1051,7 +1060,7 @@ app.post('/api/onboard-user', async (req, res) => {
             await publicClient.waitForTransactionReceipt({ hash: fundEthTx });
         }
         
-        // 检查是否已有角色
+        // 4. Check Existing Role
         const hasRole = await publicClient.readContract({
             address: REGISTRY_ADDR,
             abi: RegistryABI,
@@ -1062,8 +1071,8 @@ app.post('/api/onboard-user', async (req, res) => {
              return res.json({ success: true, message: 'Already an end user' });
         }
 
+        // 5. Deploy AA Account if needed
         let deployTx: Hash | null = null;
-        // 如果是 AA 账户且未部署，则执行部署
         if (accountData.type === 'AA') {
             const byteCode = await publicClient.getBytecode({ address: accountData.address });
             if (!byteCode || byteCode === '0x') {
@@ -1077,9 +1086,8 @@ app.post('/api/onboard-user', async (req, res) => {
             }
         }
 
-        // --- 核心修复: GToken 质押准备 ---
-        console.log(`\n🔍 [Debug] Onboarding Check for ${account.name} (${account.address})`);
-        console.log(`   Target Community: ${demoState.communityAddress}`);
+        // 6. GToken Staking Preparation
+        const minStakeRequired = parseEther('0.35'); // EndUser min stake (0.3) + burn (0.05)
         
         let balance = await publicClient.readContract({
             address: GTOKEN_ADDR,
@@ -1089,7 +1097,6 @@ app.post('/api/onboard-user', async (req, res) => {
         }) as bigint;
         console.log(`   GToken Balance: ${(Number(balance)/1e18).toFixed(2)}`);
 
-        const minStakeRequired = parseEther('0.35'); // EndUser min stake (0.3) + burn (0.05)
         if (balance < minStakeRequired) {
             console.log(`   ⚠️ Insufficient GToken. Funding from Supplier...`);
             const supplierClient = createWalletClient({ account: privateKeyToAccount(SUPPLIER_KEY), chain: sepolia, transport: http(RPC_URL) });
@@ -1123,6 +1130,7 @@ app.post('/api/onboard-user', async (req, res) => {
             console.log(`   ✅ Approved: ${appTx}`);
         }
 
+        // 7. Initialize EndUser Client and Join
         const client = createEndUserClient({
             chain: sepolia,
             transport: http(RPC_URL),
@@ -1130,11 +1138,6 @@ app.post('/api/onboard-user', async (req, res) => {
             addresses: CONFIG.addresses
         });
 
-        const targetCommunity = req.body.communityAddress || demoState.communityAddress;
-        if (!targetCommunity) {
-            console.error(`   ❌ Error: Community address is missing!`);
-            throw new Error('Community not launched or configured');
-        }
         console.log(`   🏛 Joining Community: ${targetCommunity}`);
 
         const roleData = RoleDataFactory.endUser({
@@ -1157,6 +1160,7 @@ app.post('/api/onboard-user', async (req, res) => {
 
         res.json({ success: true, sbtId: result.sbtId.toString(), transaction: result.tx });
     } catch (error) {
+        console.error('❌ Error during user onboarding:', error);
         res.status(500).json({ success: false, error: (error as Error).message });
     }
 });
