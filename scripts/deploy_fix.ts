@@ -1,5 +1,5 @@
-
-import { createWalletClient, createPublicClient, http, parseAbi, hexToBytes, toHex } from 'viem';
+```
+import { createWalletClient, createPublicClient, http, parseAbi, hexToBytes, toHex, type Hex } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { sepolia } from 'viem/chains';
 import * as dotenv from 'dotenv';

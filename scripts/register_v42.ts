@@ -1,8 +1,9 @@
-
-import { createWalletClient, createPublicClient, http, parseAbi } from 'viem';
+```
+import { createPublicClient, createWalletClient, http, parseAbi, type Hex } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { sepolia } from 'viem/chains';
 import * as dotenv from 'dotenv';
+dotenv.config();
 import path from 'path';
 
 const envPath = path.resolve(process.cwd(), '../env/.env.v3');

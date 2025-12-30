@@ -1,11 +1,12 @@
-
-import { createWalletClient, createPublicClient, http, parseAbi, hexToBytes, toHex } from 'viem';
+```typescript
+import { createPublicClient, createWalletClient, http, parseAbi, type Hex } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { sepolia } from 'viem/chains';
 import * as dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
 
+dotenv.config(); // Demo override
 dotenv.config({ path: path.resolve(__dirname, '../../env/.env.sepolia') });
 dotenv.config({ path: path.resolve(__dirname, '.env') }); // Demo override
 
