@@ -1,21 +1,21 @@
-```
 import { createPublicClient, createWalletClient, http, parseAbi, type Hex } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { sepolia } from 'viem/chains';
 import * as dotenv from 'dotenv';
-dotenv.config();
 import path from 'path';
 
+// Try loading from .env or ../env/.env.v3
 const envPath = path.resolve(process.cwd(), '../env/.env.v3');
 dotenv.config({ path: envPath });
+dotenv.config();
 
 const RPC_URL = process.env.SEPOLIA_RPC_URL || 'https://eth-sepolia.g.alchemy.com/v2/Bx4QRW1-vnwJUePSAAD7N';
-// Anni's Private Key
-const PRIVATE_KEY = '[REDACTED_ALICE]';
+const PRIVATE_KEY = process.env.PRIVATE_KEY as Hex;
 const FACTORY_ADDRESS = '0xF3B3E26970A85e7c5F8d9efD8bF5873118d43e9e'; // Original Factory
 const IMPL_ADDRESS = '0xa169cd19c281dda3c0845e4e5e5fd17c65ec5ac4'; // V4.2 Impl
 
 async function main() {
+    if (!PRIVATE_KEY) throw new Error("PRIVATE_KEY not found in environment");
     console.log('🚀 Registering V4.2 on Original Factory...');
     
     const account = privateKeyToAccount(PRIVATE_KEY);
