@@ -1,5 +1,63 @@
 # AAStar SDK Interactive Demo
 
+[中文说明](#chinese-readme)
+
+This project demonstrates a complete **Gasless Transaction** flow using the AAStar SDK. It consists of two services: a backend Faucet for L4 onboarding and a frontend UI for the interactive demo.
+
+## 🎯 Features
+
+- **6-Step Complete Workflow**: Account Generation → Funding → Community Launch → Operator Setup → User Onboarding → Benchmark
+- **Real-time Logs**: View detailed on-chain transaction logs.
+- **Gas Comparison**: Benchmark Gas costs vs. EOA, Standard AA, Paymaster V4, and SuperPaymaster V3.
+- **Modern UI**: Dark mode + Glassmorphism design.
+
+## 📦 Quick Start
+
+### 1. Install Dependencies
+
+```bash
+pnpm install
+```
+
+### 2. Configure Environment
+
+Copy `.env.example` to `.env.sepolia`:
+
+```bash
+cp .env.example .env.sepolia
+```
+
+Edit `.env.sepolia` with your keys:
+
+```env
+# RPC URL
+SEPOLIA_RPC_URL=https://sepolia.infura.io/v3/YOUR_KEY
+
+# Supplier Private Key (Needs 0.5 ETH + 200 GToken)
+PRIVATE_KEY_SUPPLIER=0x...
+```
+
+### 3. Start Demo
+
+```bash
+pnpm demo
+```
+Open `http://localhost:3000` in your browser.
+
+## 🎮 Usage Guide
+
+1. **Generate Accounts**: create test accounts (Alice, Bob, Charlie).
+2. **Fund Accounts**: supplier sends ETH + GToken.
+3. **Launch Community**: Alice creates a DAO.
+4. **Setup Operator**: Bob registers as Paymaster Operator via Staking.
+5. **Onboard User**: Charlie joins and gets an SBT.
+6. **Benchmark**: Execute gasless tx and compare costs.
+
+---
+
+<a id="chinese-readme"></a>
+# AAStar SDK Interactive Demo (中文说明)
+
 一个完整的交互式演示项目，展示 AAStar SDK 的完整工作流程：从账户创建到 Gasless 交易。
 
 ## 🎯 功能特性
