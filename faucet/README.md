@@ -5,7 +5,8 @@
 
 ## 🚀 Deployment (Vercel)
 
-This project is configured for Vercel Serverless Functions (`api/index.ts`).
+This project is configured for Vercel Serverless Functions (`api/index.js`).
+It has been converted to Pure JavaScript (ESM) for maximum stability.
 
 1.  **Import Project**: Import this `faucet` directory as a new project in Vercel.
 2.  **Environment Variables**:
