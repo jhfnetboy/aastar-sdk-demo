@@ -10,7 +10,9 @@ import {
     parseAbi,
     parseAbiParameters,
     encodeAbiParameters,
-    formatEther
+    formatEther,
+    isAddress,
+    getAddress
 } from 'viem';
 import { sepolia } from 'viem/chains';
 import { privateKeyToAccount } from 'viem/accounts';
@@ -80,7 +82,7 @@ const config = {
     sbt: process.env.MYSBT_ADDR || fileConfig.sbt,
     simpleAccountFactory: process.env.SIMPLE_ACCOUNT_FACTORY || fileConfig.simpleAccountFactory,
     apnts: process.env.APNTS_ADDR || fileConfig.aPNTs || fileConfig.contracts?.aPNTs,
-    community: process.env.COMMUNITY_ADDR || '0x7F2C6C1BFA354d24B2C8D237731737A4949577', // Default to Anni for demo if not set
+    community: process.env.COMMUNITY_ADDR || '0xEcAACb915f7D92e9916f449F7ad42BD0408733c9', // Canonical Anni Address
     entryPoint: process.env.ENTRYPOINT_ADDR || fileConfig.entryPoint || '0x0000000071727De22E5E9d8BAf0edAc6f37da032'
 };
 
@@ -197,10 +199,14 @@ const ROLE_ENDUSER = "0x0c34ecc75d3bf122e0609d2576e167f53fb42429262ce8c9b33cab91
 
 app.post('/faucet', async (req, res) => {
     const { target, ownerKey } = req.body;
-    if (!target) return res.status(400).json({ error: "Target address required" });
+    if (!target || !isAddress(target)) return res.status(400).json({ error: "Invalid target address" });
+    const normalizedTarget = getAddress(target);
+    const normalizedCommunity = getAddress(config.community);
+    
     if (!adminWallet) return res.status(500).json({ error: "Faucet misconfigured (Missing Key)" });
 
-    console.log(`\n🚰 Faucet request for: ${target}`);
+    console.log(`\n🚰 Faucet request for: ${normalizedTarget}`);
+    console.log(`   🏘️  Using Community: ${normalizedCommunity}`);
     const results = [];
 
     try {
@@ -281,10 +287,9 @@ if (!isMember) {
                 results.push({ name: "Staking Approval", tx: approveHash, status: "success" });
 
                 // iii. Register
-                const targetCommunity = config.community;
                 const roleData = encodeAbiParameters(
                     parseAbiParameters('address acc, address comm, string avatar, string ens, uint256 stake'),
-                    [target, targetCommunity, "", "", parseEther('0.3')]
+                    [normalizedTarget, normalizedCommunity, "", "", parseEther('0.3')]
                 );
                 const regData = encodeFunctionData({
                     abi: REGISTRY_ABI,
