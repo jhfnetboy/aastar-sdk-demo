@@ -1,21 +1,27 @@
-import { createPublicClient, createWalletClient, http, parseAbi, type Hex } from 'viem';
+
+import { createWalletClient, createPublicClient, http, parseAbi, hexToBytes, toHex } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { sepolia } from 'viem/chains';
 import * as dotenv from 'dotenv';
+import fs from 'fs';
 import path from 'path';
 
-// Load env
-const envPath = path.resolve(process.cwd(), '../env/.env.v3');
-dotenv.config({ path: envPath });
-dotenv.config();
+dotenv.config({ path: path.resolve(__dirname, '../../env/.env.sepolia') });
+dotenv.config({ path: path.resolve(__dirname, '.env') }); // Demo override
 
-const PRIVATE_KEY = process.env.PRIVATE_KEY as Hex;
-const RPC_URL = process.env.SEPOLIA_RPC_URL || 'https://eth-sepolia.g.alchemy.com/v2/Bx4QRW1-vnwJUePSAAD7N';
+const RPC_URL = process.env.RPC_URL || 'https://sepolia.drpc.org';
+const PRIVATE_KEY = '[REDACTED_BOB]'; // Alice's Key (safe for demo ref)
 
-async function main() {
-    if (!PRIVATE_KEY) throw new Error("PRIVATE_KEY not found");
-    const account = privateKeyToAccount(PRIVATE_KEY);
-    console.log(`Demo setup for account: ${account.address}`);
-}
+// ABIs
+const FactoryABI = parseAbi([
+    'constructor(address _owner)',
+    'function addImplementation(string version, address implementation) external function deployPaymaster(string version, bytes initData) external returns (address)'
+]);
 
-main().catch(console.error);
+// We need the bytecode for PaymasterFactory and PaymasterV4_2.
+// Since I can't compile solidity easily here without foundry setup/artifacts...
+// I should use `forge build` first in SuperPaymaster project?
+// Yes, the user has `foundry`.
+// I will trigger a forge build for PaymasterV4_2 first.
+
+console.log('Use run_command to build contracts first.');
