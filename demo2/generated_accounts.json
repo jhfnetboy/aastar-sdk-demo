@@ -39,5 +39,18 @@
     "userAddress": "0xf73750a1C4B0A80f98915564bf2C6E11302C3E9a",
     "aaAddress": "0x65694fEfC84852899086758bc2CD495e6CFb5b05",
     "privateKey": "0x4f33f9cea8a8f8204c93224050dccb3e1ec9c958ecd3861c1ce2f0b6813c514c"
+  },
+  {
+    "userAddress": "0x35C4AcD5B379b2e44269cEec26611551a707AbE8",
+    "aaAddress": "0xB64eC57140e395a361bd6a7Cc8AfCA56cFF53B68",
+    "privateKey": "0x46e9ff8101b82534bb174a1be3bdb183a3792f185c9349c06d4be78ea4cd0cd4",
+    "transactions": [
+      {
+        "hash": "0xb88124b1b8f067fa4936baf7d1f8caeb899f85e961b07ec06f26ecffb414115f",
+        "timestamp": "2026-01-20T14:20:52.883Z",
+        "type": "Gasless aPNTs Transfer",
+        "etherscan": "https://sepolia.etherscan.io/tx/0xb88124b1b8f067fa4936baf7d1f8caeb899f85e961b07ec06f26ecffb414115f"
+      }
+    ]
   }
 ]
