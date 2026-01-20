@@ -14,17 +14,16 @@ import {
 } from 'viem';
 import { sepolia } from 'viem/chains';
 import { privateKeyToAccount } from 'viem/accounts';
-import * as dotenv from 'dotenv';
-import { fileURLToPath } from 'url';
 import fs from 'fs';
 import path from 'path';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// Use process.cwd() for Vercel compatibility
+const CONFIG_PATH = path.join(process.cwd(), 'config.sepolia.json');
+const ENV_PATH = path.join(process.cwd(), '.env');
 
 // Load env
-if (fs.existsSync(path.join(__dirname, '../.env'))) {
-    dotenv.config({ path: path.join(__dirname, '../.env') });
+if (fs.existsSync(ENV_PATH)) {
+    dotenv.config({ path: ENV_PATH });
 }
 
 const app = express();
@@ -62,7 +61,6 @@ app.use((req, res, next) => {
 });
 
 // --- Configuration ---
-const CONFIG_PATH = path.join(process.cwd(), 'config.sepolia.json');
 let fileConfig: any = {};
 try {
     if (fs.existsSync(CONFIG_PATH)) {
@@ -195,14 +193,7 @@ const ROLE_ENDUSER = "0x0c34ecc75d3bf122e0609d2576e167f53fb42429262ce8c9b33cab91
 
 // --- Routes ---
 
-app.get('/', (req, res) => {
-    res.json({
-        service: "AAStar Faucet Service",
-        status: "Online",
-        auth_required: !!FAUCET_SECRET,
-        usage: "POST /faucet { target, ownerKey }"
-    });
-});
+// (The POST handler starts below)
 
 app.post('/faucet', async (req, res) => {
     const { target, ownerKey } = req.body;

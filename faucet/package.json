@@ -2,11 +2,9 @@
   "name": "aastar-faucet-service",
   "version": "1.0.0",
   "type": "module",
-  "main": "api/index.js",
   "scripts": {
     "start": "tsx api/index.ts",
-    "dev": "tsx api/index.ts",
-    "build": "echo '✅ No build step required for Serverless Functions'"
+    "dev": "tsx api/index.ts"
   },
   "dependencies": {
     "express": "^4.18.2",
