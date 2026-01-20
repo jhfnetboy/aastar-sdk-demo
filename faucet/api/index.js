@@ -281,25 +281,27 @@ if (!isMember) {
 
                 // iii. Register
                 // Hardcoded Anni/Community for Demo
-                const anni = "0x7F2C6C1BFA354d24B2C8D237731737A494957777"; 
-        const roleData = encodeAbiParameters(
-            parseAbiParameters('address acc, address comm, string avatar, string ens, uint256 stake'),
-            [target, anni, "", "", parseEther('0.3')]
-        );
-        const regData = encodeFunctionData({
-            abi: REGISTRY_ABI,
-            functionName: 'registerRole',
-            args: [ROLE_ENDUSER, target, roleData]
-        });
-        const execRegData = encodeFunctionData({
-            abi: ACCOUNT_ABI,
-            functionName: 'execute',
-            args: [config.registry, 0n, regData]
-        });
-        const regHash = await ownerClient.sendTransaction({ 
-            to: target, 
-            data: execRegData 
-        });
+                // iii. Register
+                // Hardcoded Anni/Community for Demo
+                const anni = "0x7F2C6C1BFA354d24B2C8D237731737A49495777"; 
+                const roleData = encodeAbiParameters(
+                    parseAbiParameters('address acc, address comm, string avatar, string ens, uint256 stake'),
+                    [target, anni, "", "", parseEther('0.3')]
+                );
+                const regData = encodeFunctionData({
+                    abi: REGISTRY_ABI,
+                    functionName: 'registerRole',
+                    args: [ROLE_ENDUSER, target, roleData]
+                });
+                const execRegData = encodeFunctionData({
+                    abi: ACCOUNT_ABI,
+                    functionName: 'execute',
+                    args: [config.registry, 0n, regData]
+                });
+                const regHash = await ownerClient.sendTransaction({ 
+                    to: target, 
+                    data: execRegData 
+                });
                 await PUBLIC_CLIENT.waitForTransactionReceipt({ hash: regHash });
                 results.push({ name: "Community Registration", tx: regHash, status: "success" });
             } else {
