@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AAStar SDK Interactive Demo</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #eee;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 30px;
+            border-radius: 16px;
+            margin-bottom: 30px;
+            box-shadow: 0 8px 32px rgba(102, 126, 234, 0.3);
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            opacity: 0.9;
+            font-size: 1.1rem;
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 400px 1fr;
+            gap: 30px;
+        }
+
+        .workflow {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .step-card {
+            background: rgba(22, 33, 62, 0.8);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 20px;
+            transition: all 0.3s ease;
+        }
+
+        .step-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(15, 76, 117, 0.4);
+            border-color: #0f4c75;
+        }
+
+        .step-card.completed {
+            border-color: #4ade80;
+            background: rgba(74, 222, 128, 0.1);
+        }
+
+        .step-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .step-icon {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, #0f4c75 0%, #3282b8 100%);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+        }
+
+        .step-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+
+        .step-status {
+            margin-left: auto;
+            font-size: 20px;
+        }
+
+        .run-btn {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(135deg, #0f4c75 0%, #3282b8 100%);
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .run-btn:hover:not(:disabled) {
+            transform: scale(1.02);
+            box-shadow: 0 4px 16px rgba(50, 130, 184, 0.5);
+        }
+
+        .run-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .results-panel {
+            background: rgba(22, 33, 62, 0.6);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            padding: 30px;
+        }
+
+        .panel-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 30px;
+        }
+
+        th, td {
+            padding: 15px;
+            text-align: left;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        th {
+            background: rgba(15, 76, 117, 0.3);
+            font-weight: 600;
+            color: #3282b8;
+        }
+
+        tr:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .tx-log {
+            max-height: 300px;
+            overflow-y: auto;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 8px;
+            padding: 15px;
+        }
+
+        .tx-item {
+            padding: 10px;
+            margin-bottom: 10px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 6px;
+            font-family: 'Monaco', monospace;
+            font-size: 0.9rem;
+        }
+
+        .tx-type {
+            color: #3282b8;
+            font-weight: 600;
+        }
+
+        .tx-hash {
+            color: #4ade80;
+            word-break: break-all;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top-color: #3282b8;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        .badge-success {
+            background: rgba(74, 222, 128, 0.2);
+            color: #4ade80;
+        }
+
+        .badge-warning {
+            background: rgba(251, 191, 36, 0.2);
+            color: #fbbf24;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🚀 AAStar SDK Interactive Demo</h1>
+            <p class="subtitle">Experience the complete workflow: from account creation to gasless transactions</p>
+        </header>
+
+        <div class="main-content">
+            <!-- Workflow Steps -->
+            <div class="workflow">
+                <div class="step-card" id="step-1">
+                    <div class="step-header">
+                        <div class="step-icon">👥</div>
+                        <div class="step-title">Generate Accounts</div>
+                        <div class="step-status"></div>
+                    </div>
+                    <button class="run-btn" onclick="runStep(1)">Run Step 1</button>
+                </div>
+
+                <div class="step-card" id="step-2">
+                    <div class="step-header">
+                        <div class="step-icon">💰</div>
+                        <div class="step-title">Fund Accounts</div>
+                        <div class="step-status"></div>
+                    </div>
+                    <button class="run-btn" onclick="runStep(2)" disabled>Run Step 2</button>
+                </div>
+
+                <div class="step-card" id="step-3">
+                    <div class="step-header">
+                        <div class="step-icon">🏛️</div>
+                        <div class="step-title">Launch Community</div>
+                        <div class="step-status"></div>
+                    </div>
+                    <button class="run-btn" onclick="runStep(3)" disabled>Run Step 3</button>
+                </div>
+
+                <div class="step-card" id="step-4">
+                    <div class="step-header">
+                        <div class="step-icon">⚙️</div>
+                        <div class="step-title">Setup Operator</div>
+                        <div class="step-status"></div>
+                    </div>
+                    <button class="run-btn" onclick="runStep(4)" disabled>Run Step 4</button>
+                </div>
+
+                <div class="step-card" id="step-5">
+                    <div class="step-header">
+                        <div class="step-icon">👤</div>
+                        <div class="step-title">Onboard User</div>
+                        <div class="step-status"></div>
+                    </div>
+                    <button class="run-btn" onclick="runStep(5)" disabled>Run Step 5</button>
+                </div>
+
+                <div class="step-card" id="step-6">
+                    <div class="step-header">
+                        <div class="step-icon">📊</div>
+                        <div class="step-title">Benchmark Transactions</div>
+                        <div class="step-status"></div>
+                    </div>
+                    <button class="run-btn" onclick="runStep(6)" disabled>Run Step 6</button>
+                </div>
+            </div>
+
+            <!-- Results Panel -->
+            <div class="results-panel">
+                <div class="panel-title">📈 Benchmark Results</div>
+                <table id="benchmark-table">
+                    <thead>
+                        <tr>
+                            <th>Scenario</th>
+                            <th>Gas Used</th>
+                            <th>Overhead</th>
+                            <th>Transaction Hash</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td colspan="4" style="text-align: center; opacity: 0.5;">Run Step 6 to see benchmark results</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div class="panel-title">📝 Transaction Log</div>
+                <div class="tx-log" id="tx-log">
+                    <div style="text-align: center; opacity: 0.5;">No transactions yet</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:3000/api';
+        let currentStep = 1;
+
+        async function runStep(step) {
+            const stepCard = document.getElementById(`step-${step}`);
+            const btn = stepCard.querySelector('.run-btn');
+            const status = stepCard.querySelector('.step-status');
+
+            btn.disabled = true;
+            status.innerHTML = '<span class="loading"></span>';
+
+            try {
+                let result;
+                switch(step) {
+                    case 1:
+                        result = await fetch(`${API_BASE}/generate-accounts`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ names: ['Alice', 'Bob', 'Charlie'] })
+                        }).then(r => r.json());
+                        
+                        // 显示详细账户信息
+                        result.accounts.forEach(acc => {
+                            addLog(`Generated ${acc.name}:`);
+                            addLog(`  Address: ${acc.address}`);
+                            addLog(`  Private Key: ${acc.privateKey.substring(0, 20)}...${acc.privateKey.substring(acc.privateKey.length - 10)}`);
+                        });
+                        break;
+                        
+                    case 2:
+                        addLog('Starting funding process...');
+                        result = await fetch(`${API_BASE}/fund-accounts`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ ethAmount: '0.05', tokenAmount: '50' })
+                        }).then(r => r.json());
+                        
+                        // 显示余额信息
+                        if (result.balances) {
+                            result.balances.forEach(bal => {
+                                addLog(`${bal.name}: ${bal.eth} ETH, ${bal.gtoken} GToken`);
+                            });
+                        }
+                        addLog('All accounts funded successfully!');
+                        break;
+                        
+                    case 3:
+                        addLog('Launching community...');
+                        result = await fetch(`${API_BASE}/launch-community`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ accountIndex: 0, communityName: 'DemoDAO' })
+                        }).then(r => r.json());
+                        addLog(`Community launched!`);
+                        addLog(`  Token: ${result.tokenAddress}`);
+                        addLog(`  Transactions: ${result.transactions.length}`);
+                        break;
+                        
+                    case 4:
+                        addLog('Setting up operator...');
+                        result = await fetch(`${API_BASE}/setup-operator`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ accountIndex: 1 })
+                        }).then(r => r.json());
+                        addLog(`Operator setup complete (${result.transactions.length} txs)`);
+                        break;
+                        
+                    case 5:
+                        addLog('Onboarding user...');
+                        result = await fetch(`${API_BASE}/onboard-user`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ accountIndex: 2 })
+                        }).then(r => r.json());
+                        addLog(`User onboarded! SBT ID: ${result.sbtId}`);
+                        break;
+                        
+                    case 6:
+                        addLog('Running benchmark...');
+                        result = await fetch(`${API_BASE}/benchmark`, {
+                            method: 'POST'
+                        }).then(r => r.json());
+                        displayBenchmark(result.results);
+                        addLog('Benchmark complete');
+                        break;
+                }
+
+                if (result.success) {
+                    status.innerHTML = '✅';
+                    stepCard.classList.add('completed');
+                    enableNextStep(step + 1);
+                } else {
+                    status.innerHTML = '❌';
+                    addLog(`Error: ${result.error}`, true);
+                }
+            } catch (error) {
+                status.innerHTML = '❌';
+                addLog(`Error: ${error.message}`, true);
+            }
+        }
+
+        function enableNextStep(step) {
+            if (step <= 6) {
+                const nextCard = document.getElementById(`step-${step}`);
+                nextCard.querySelector('.run-btn').disabled = false;
+            }
+        }
+
+        function addLog(message, isError = false) {
+            const logDiv = document.getElementById('tx-log');
+            if (logDiv.children[0]?.textContent === 'No transactions yet') {
+                logDiv.innerHTML = '';
+            }
+            const item = document.createElement('div');
+            item.className = 'tx-item';
+            item.innerHTML = `
+                <div class="tx-type" style="color: ${isError ? '#ef4444' : '#3282b8'}">${new Date().toLocaleTimeString()}</div>
+                <div>${message}</div>
+            `;
+            logDiv.insertBefore(item, logDiv.firstChild);
+        }
+
+        function displayBenchmark(results) {
+            const tbody = document.querySelector('#benchmark-table tbody');
+            tbody.innerHTML = results.map(r => {
+                const baseline = 21000;
+                const overhead = ((parseInt(r.gasUsed) - baseline) / baseline * 100).toFixed(1);
+                return `
+                    <tr>
+                        <td><strong>${r.scenario}</strong></td>
+                        <td>${parseInt(r.gasUsed).toLocaleString()}</td>
+                        <td><span class="badge ${overhead > 300 ? 'badge-warning' : 'badge-success'}">+${overhead}%</span></td>
+                        <td class="tx-hash">${r.hash.substring(0, 20)}...</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+    </script>
+</body>
+</html>

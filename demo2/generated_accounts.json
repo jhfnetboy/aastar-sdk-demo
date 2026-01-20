@@ -26,5 +26,10 @@
         "etherscan": "https://sepolia.etherscan.io/tx/0x23ade4ab25e786b3c3f8f05b95ed3830f10a58614f316711428da5186b500f68"
       }
     ]
+  },
+  {
+    "userAddress": "0xf73750a1C4B0A80f98915564bf2C6E11302C3E9a",
+    "aaAddress": "0x65694fEfC84852899086758bc2CD495e6CFb5b05",
+    "privateKey": "0x4f33f9cea8a8f8204c93224050dccb3e1ec9c958ecd3861c1ce2f0b6813c514c"
   }
 ]
