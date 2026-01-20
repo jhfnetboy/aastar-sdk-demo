@@ -17,18 +17,15 @@ import { SepoliaFaucetAPI } from '@aastar/core';
 import { sepolia } from 'viem/chains';
 import { privateKeyToAccount } from 'viem/accounts';
 
-import * as dotenv from 'dotenv';
-import fs from 'fs';
-import path from 'path';
-
-dotenv.config({ path: '.env.sepolia' });
+const __dirname = path.dirname(__filename);
+dotenv.config({ path: path.join(__dirname, '../.env.sepolia') });
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
 // Load contract addresses from aastar-sdk
-const CONFIG_PATH = path.resolve('../aastar-sdk/config.sepolia.json');
+const CONFIG_PATH = path.resolve(__dirname, '../../aastar-sdk/config.sepolia.json');
 const config = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'));
 
 const RPC_URL = process.env.SEPOLIA_RPC_URL || 'https://rpc.sepolia.org';

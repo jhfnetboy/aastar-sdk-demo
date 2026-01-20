@@ -134,8 +134,11 @@ const EntryPointABI = [{
 }];
 
 // Load env
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 // Load env
-dotenv.config({ path: path.resolve(process.cwd(), '.env.sepolia') });
+dotenv.config({ path: path.join(__dirname, '../.env.sepolia') });
 
 // Configuration
 const RPC_URL = process.env.SEPOLIA_RPC_URL || process.env.RPC_URL || 'https://rpc.sepolia.org';

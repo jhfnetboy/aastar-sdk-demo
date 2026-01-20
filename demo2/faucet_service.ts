@@ -14,17 +14,21 @@ import {
 import { sepolia } from 'viem/chains';
 import { privateKeyToAccount } from 'viem/accounts';
 import * as dotenv from 'dotenv';
+import { fileURLToPath } from 'url';
 import fs from 'fs';
 import path from 'path';
 
-dotenv.config({ path: '.env.sepolia' });
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+dotenv.config({ path: path.join(__dirname, '../.env.sepolia') });
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// --- Config loading ---
-const SDK_PATH = path.resolve('../aastar-sdk');
+// Load configurations
+const SDK_PATH = path.resolve(__dirname, '../../aastar-sdk');
 const CONFIG_PATH = path.join(SDK_PATH, 'config.sepolia.json');
 const STATE_PATH = path.join(SDK_PATH, 'scripts/l4-state.json');
 
