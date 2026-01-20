@@ -130,9 +130,19 @@ app.post('/api/fund', async (req, res) => {
     try {
         addLog(`Step 2: Requesting L4 Onboarding for ${aaAddress}...`);
         
-        const faucetRes = await fetch('http://localhost:3002/faucet', {
+        const FAUCET_URL = process.env.FAUCET_URL || 'http://localhost:3002/faucet';
+        const FAUCET_SECRET = process.env.FAUCET_SECRET || '';
+
+        addLog(`   🔗 Faucet: ${FAUCET_URL}`);
+
+        const headers: any = { 'Content-Type': 'application/json' };
+        if (FAUCET_SECRET) {
+            headers['Authorization'] = `Bearer ${FAUCET_SECRET}`;
+        }
+
+        const faucetRes = await fetch(FAUCET_URL, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: headers,
             body: JSON.stringify({ target: aaAddress, ownerKey })
         });
         

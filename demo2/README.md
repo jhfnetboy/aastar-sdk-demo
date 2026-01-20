@@ -6,15 +6,10 @@
 
 ## 🚀 快速上手 (Quick Start)
 
-### 1. 启动 Faucet 服务 (端口 3002)
+### 1. 配置 Faucet 服务 (端口 3002)
 
-在一个终端中运行：
-
-```bash
-cd demo2
-./faucet.sh
-```
-*这个脚本会启动 `faucet_service.ts`，负责处理充值和 Paymaster 设置。*
+根目录建立.env.sepolia
+add FAUCET_URL 和 FAUCET_SECRET 环境变量
 
 ### 2. 启动 UI 服务 (端口 3001)
 
@@ -30,11 +25,19 @@ cd demo2
 
 访问 [http://localhost:3001](http://localhost:3001) 开始体验。
 
----
+## ⚙️ 配置 (Configuration)
+
+该 Demo 依赖外部 Faucet 服务。默认配置下，它会连接到本地启动的 Faucet (`http://localhost:3002/faucet`)。
+如果您部署了独立的 Faucet 服务 (例如 on Vercel)，可以在 `.env.sepolia` 中配置：
+
+```bash
+FAUCET_URL="https://your-faucet-service.vercel.app/faucet"
+FAUCET_SECRET="your-secret-password"
+```
 
 ## 📂 目录结构 & 文件作用
 
-*   **`faucet_service.ts`**: Faucet 后端核心。处理 L4 Onboarding、充值 ETH/GToken、初始化 Paymaster、强制更新预言机价格等。
+*   **`faucet_service.ts`**: (已移除，逻辑迁移至根目录 `faucet/`)
 *   **`demo_ui.ts`**: UI 后端服务器。提供 `/api/generate-account`, `/api/run-test` 等接口，并持久化存储账户信息。
 *   **`demo_public/`**: 前端静态文件 (`index.html` 等)。
 *   **`generated_accounts.json`**: 自动生成的账户存储文件。包含账户地址、私钥以及**历史交易记录 (Etherscan Links)**。

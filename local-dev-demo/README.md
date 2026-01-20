@@ -2,7 +2,10 @@
 
 [English Version](#english-readme)
 
-这是一个独立的 Gasless Demo 演示模块，整合了 Faucet 服务和交互式 UI。
+这是一个独立的 Gasless Demo 演示模块，完全使用AAStar SDK，整合了 Faucet 服务和交互式 UI。
+<img src="snapshot1.png" width="500"/>
+</br>
+<img src="snapshot2.png" width="500"/>
 
 ## 🚀 快速上手 (Quick Start)
 
@@ -11,8 +14,10 @@
 在一个终端中运行：
 
 ```bash
-cd demo2
+cd local-dev-demo
 ./faucet.sh
+访问3002,显示简单的readme。
+目前也可以配置FAUCET_URL 和 FAUCET_SECRET 环境变量，从而不依赖本地faucet服务。
 ```
 *这个脚本会启动 `faucet_service.ts`，负责处理充值和 Paymaster 设置。*
 
@@ -21,7 +26,7 @@ cd demo2
 在另一个终端中运行：
 
 ```bash
-cd demo2
+cd local-dev-demo
 ./ui.sh
 ```
 *这个脚本会启动 `demo_ui.ts` 并把日志输出到文件，然后在后台运行。*
@@ -61,7 +66,7 @@ This is a standalone module demonstrating the full Gasless Transaction flow usin
 Run in terminal:
 
 ```bash
-cd demo2
+cd local-dev-demo
 ./faucet.sh
 ```
 
@@ -70,7 +75,7 @@ cd demo2
 Run in another terminal:
 
 ```bash
-cd demo2
+cd local-dev-demo
 ./ui.sh
 ```
 
