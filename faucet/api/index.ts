@@ -14,14 +14,12 @@ import {
 } from 'viem';
 import { sepolia } from 'viem/chains';
 import { privateKeyToAccount } from 'viem/accounts';
+import * as dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
 
-// Use process.cwd() for Vercel compatibility
-const CONFIG_PATH = path.join(process.cwd(), 'config.sepolia.json');
+// Load env - Vercel handles this automatically in prod, but for local/standalone:
 const ENV_PATH = path.join(process.cwd(), '.env');
-
-// Load env
 if (fs.existsSync(ENV_PATH)) {
     dotenv.config({ path: ENV_PATH });
 }
