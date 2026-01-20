@@ -59,6 +59,7 @@ app.use((req, res, next) => {
 });
 
 // --- Configuration ---
+const CONFIG_PATH = path.join(process.cwd(), 'config.sepolia.json');
 let fileConfig: any = {};
 try {
     if (fs.existsSync(CONFIG_PATH)) {
@@ -406,14 +407,6 @@ app.post('/faucet', async (req, res) => {
         res.status(500).json({ error: error.message, results });
     }
 });
-
-// Local Development Support
-if (process.env.NODE_ENV !== 'production') {
-    const PORT = 3002;
-    app.listen(PORT, () => {
-        console.log(`🚰 Faucet Service running on http://localhost:${PORT}`);
-    });
-}
 
 // Export for Vercel
 export default app;
