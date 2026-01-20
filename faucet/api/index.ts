@@ -32,6 +32,7 @@ app.use(cors());
 app.use(express.json());
 
 // --- Authentication Middleware ---
+import crypto from 'crypto';
 const FAUCET_SECRET = process.env.FAUCET_SECRET;
 
 app.use((req, res, next) => {
@@ -43,9 +44,18 @@ app.use((req, res, next) => {
         const authHeader = req.headers['authorization'] || req.headers['x-auth-token'];
         const token = (authHeader as string)?.replace('Bearer ', '').trim();
         
-        if (!token || token !== FAUCET_SECRET) {
-            console.warn(`⚠️  Unauthorized access attempt.`);
-            return res.status(401).json({ error: 'Unauthorized: Missing or Invalid Faucet Secret' });
+        if (!token) {
+            console.warn(`⚠️  Unauthorized: No Token Provided`);
+            return res.status(401).json({ error: 'Unauthorized: Missing Faucet Secret' });
+        }
+
+        // Constant-time comparison to prevent timing attacks
+        const tokenBuf = Buffer.from(token);
+        const secretBuf = Buffer.from(FAUCET_SECRET);
+        
+        if (tokenBuf.length !== secretBuf.length || !crypto.timingSafeEqual(tokenBuf, secretBuf)) {
+             console.warn(`⚠️  Unauthorized: Invalid Token`);
+             return res.status(401).json({ error: 'Unauthorized: Invalid Faucet Secret' });
         }
     }
     next();
