@@ -17,6 +17,7 @@ import { privateKeyToAccount } from 'viem/accounts';
 import * as dotenv from 'dotenv';
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 
 // Load env - Vercel handles this automatically in prod, but for local/standalone:
 const ENV_PATH = path.join(process.cwd(), '.env');
@@ -29,7 +30,6 @@ app.use(cors());
 app.use(express.json());
 
 // --- Authentication Middleware ---
-import crypto from 'crypto';
 const FAUCET_SECRET = process.env.FAUCET_SECRET;
 
 app.use((req, res, next) => {
@@ -39,7 +39,7 @@ app.use((req, res, next) => {
     // If Secret is set, enforce it
     if (FAUCET_SECRET) {
         const authHeader = req.headers['authorization'] || req.headers['x-auth-token'];
-        const token = (authHeader as string)?.replace('Bearer ', '').trim();
+const token = authHeader?.replace('Bearer ', '').trim();
         
         if (!token) {
             console.warn(`⚠️  Unauthorized: No Token Provided`);
@@ -60,7 +60,7 @@ app.use((req, res, next) => {
 
 // --- Configuration ---
 const CONFIG_PATH = path.join(process.cwd(), 'config.sepolia.json');
-let fileConfig: any = {};
+let fileConfig = {};
 try {
     if (fs.existsSync(CONFIG_PATH)) {
         fileConfig = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'));
@@ -91,9 +91,9 @@ if (!SUPPLIER_KEY) {
     console.error("❌ Missing PRIVATE_KEY_SUPPLIER env var");
 }
 
-let adminWallet: any;
+let adminWallet;
 if (SUPPLIER_KEY) {
-    const adminAccount = privateKeyToAccount(SUPPLIER_KEY as `0x${string}`);
+    const adminAccount = privateKeyToAccount(SUPPLIER_KEY);
     adminWallet = createWalletClient({
         account: adminAccount,
         chain: sepolia,
@@ -200,13 +200,13 @@ app.post('/faucet', async (req, res) => {
     if (!adminWallet) return res.status(500).json({ error: "Faucet misconfigured (Missing Key)" });
 
     console.log(`\n🚰 Faucet request for: ${target}`);
-    const results: any[] = [];
+    const results = [];
 
     try {
         // 1. Fund ETH to AA
-        const balance = await PUBLIC_CLIENT.getBalance({ address: target as `0x${string}` });
-        if (balance < parseEther('0.01')) {
-            const hash = await adminWallet.sendTransaction({ to: target as `0x${string}`, value: parseEther('0.05') });
+const balance = await PUBLIC_CLIENT.getBalance({ address: target });
+if (balance < parseEther('0.01')) {
+    const hash = await adminWallet.sendTransaction({ to: target, value: parseEther('0.05') });
             await PUBLIC_CLIENT.waitForTransactionReceipt({ hash });
             results.push({ name: "AA ETH Funding", amount: "0.05 ETH", tx: hash, status: "success" });
             console.log(`   ✅ AA ETH Funded: ${hash}`);
@@ -215,7 +215,7 @@ app.post('/faucet', async (req, res) => {
         }
 
         if (ownerKey) {
-            const ownerAccount = privateKeyToAccount(ownerKey as `0x${string}`);
+const ownerAccount = privateKeyToAccount(ownerKey);
             
             // 1b. Fund ETH to Owner
             const ownerBalance = await PUBLIC_CLIENT.getBalance({ address: ownerAccount.address });
@@ -229,77 +229,77 @@ app.post('/faucet', async (req, res) => {
             const ownerClient = createWalletClient({ account: ownerAccount, chain: sepolia, transport: http(RPC_URL) });
 
             // 2. Deploy AA if needed
-            const code = await PUBLIC_CLIENT.getBytecode({ address: target as `0x${string}` });
-            if (!code || code === '0x') {
-                const hash = await adminWallet.writeContract({
-                    address: config.simpleAccountFactory as `0x${string}`,
-                    abi: FACTORY_ABI,
-                    functionName: 'createAccount',
-                    args: [ownerAccount.address, 0n]
-                });
+const code = await PUBLIC_CLIENT.getBytecode({ address: target });
+if (!code || code === '0x') {
+    const hash = await adminWallet.writeContract({
+        address: config.simpleAccountFactory,
+        abi: FACTORY_ABI,
+        functionName: 'createAccount',
+        args: [ownerAccount.address, 0n]
+    });
                 await PUBLIC_CLIENT.waitForTransactionReceipt({ hash });
                 results.push({ name: "AA Deployment", tx: hash, status: "success" });
                 console.log(`   ✅ AA Deployed: ${hash}`);
             }
 
             // 3. Register Role
-            const isMember = await PUBLIC_CLIENT.readContract({
-                address: config.registry as `0x${string}`,
-                abi: REGISTRY_ABI,
-                functionName: 'hasRole',
-                args: [ROLE_ENDUSER as `0x${string}`, target as `0x${string}`]
-            });
+const isMember = await PUBLIC_CLIENT.readContract({
+    address: config.registry,
+    abi: REGISTRY_ABI,
+    functionName: 'hasRole',
+    args: [ROLE_ENDUSER, target]
+});
 
-            if (!isMember) {
-                // i. Fund GToken
-                const fundHash = await adminWallet.writeContract({
-                    address: config.gToken as `0x${string}`,
-                    abi: ERC20_ABI,
-                    functionName: 'transfer',
-                    args: [target as `0x${string}`, parseEther('2')]
-                });
+if (!isMember) {
+    // i. Fund GToken
+    const fundHash = await adminWallet.writeContract({
+        address: config.gToken,
+        abi: ERC20_ABI,
+        functionName: 'transfer',
+        args: [target, parseEther('2')]
+    });
                 await PUBLIC_CLIENT.waitForTransactionReceipt({ hash: fundHash });
                 results.push({ name: "GToken Seeding", amount: "2 GToken", tx: fundHash, status: "success" });
 
                 // ii. Approve Staking
-                const approveData = encodeFunctionData({
-                    abi: ERC20_ABI,
-                    functionName: 'approve',
-                    args: [config.staking as `0x${string}`, parseEther('2000')]
-                });
-                const execApproveData = encodeFunctionData({
-                    abi: ACCOUNT_ABI,
-                    functionName: 'execute',
-                    args: [config.gToken as `0x${string}`, 0n, approveData]
-                });
-                const approveHash = await ownerClient.sendTransaction({ 
-                    to: target as `0x${string}`, 
-                    data: execApproveData 
-                });
+    const approveData = encodeFunctionData({
+        abi: ERC20_ABI,
+        functionName: 'approve',
+        args: [config.staking, parseEther('2000')]
+    });
+    const execApproveData = encodeFunctionData({
+        abi: ACCOUNT_ABI,
+        functionName: 'execute',
+        args: [config.gToken, 0n, approveData]
+    });
+    const approveHash = await ownerClient.sendTransaction({ 
+        to: target, 
+        data: execApproveData 
+    });
                 await PUBLIC_CLIENT.waitForTransactionReceipt({ hash: approveHash });
                 results.push({ name: "Staking Approval", tx: approveHash, status: "success" });
 
                 // iii. Register
                 // Hardcoded Anni/Community for Demo
                 const anni = "0x7F2C6C1BFA354d24B2C8D237731737A494957777"; 
-                const roleData = encodeAbiParameters(
-                    parseAbiParameters('address acc, address comm, string avatar, string ens, uint256 stake'),
-                    [target as `0x${string}`, anni as `0x${string}`, "", "", parseEther('0.3')]
-                );
-                const regData = encodeFunctionData({
-                    abi: REGISTRY_ABI,
-                    functionName: 'registerRole',
-                    args: [ROLE_ENDUSER as `0x${string}`, target as `0x${string}`, roleData]
-                });
-                const execRegData = encodeFunctionData({
-                    abi: ACCOUNT_ABI,
-                    functionName: 'execute',
-                    args: [config.registry as `0x${string}`, 0n, regData]
-                });
-                const regHash = await ownerClient.sendTransaction({ 
-                    to: target as `0x${string}`, 
-                    data: execRegData 
-                });
+        const roleData = encodeAbiParameters(
+            parseAbiParameters('address acc, address comm, string avatar, string ens, uint256 stake'),
+            [target, anni, "", "", parseEther('0.3')]
+        );
+        const regData = encodeFunctionData({
+            abi: REGISTRY_ABI,
+            functionName: 'registerRole',
+            args: [ROLE_ENDUSER, target, roleData]
+        });
+        const execRegData = encodeFunctionData({
+            abi: ACCOUNT_ABI,
+            functionName: 'execute',
+            args: [config.registry, 0n, regData]
+        });
+        const regHash = await ownerClient.sendTransaction({ 
+            to: target, 
+            data: execRegData 
+        });
                 await PUBLIC_CLIENT.waitForTransactionReceipt({ hash: regHash });
                 results.push({ name: "Community Registration", tx: regHash, status: "success" });
             } else {
@@ -307,22 +307,21 @@ app.post('/faucet', async (req, res) => {
             }
         }
 
-        // 4. Mint Gas Tokens
-        const apntsAddr = config.aPNTs as `0x${string}`;
-        const apntsBal = await PUBLIC_CLIENT.readContract({
-            address: apntsAddr,
-            abi: ERC20_ABI,
-            functionName: 'balanceOf',
-            args: [target as `0x${string}`]
-        });
+const apntsAddr = config.aPNTs;
+const apntsBal = await PUBLIC_CLIENT.readContract({
+    address: apntsAddr,
+    abi: ERC20_ABI,
+    functionName: 'balanceOf',
+    args: [target]
+});
 
-        if (apntsBal < parseEther('10')) {
-            const mintHash = await adminWallet.writeContract({
-                address: apntsAddr,
-                abi: ERC20_ABI,
-                functionName: 'mint',
-                args: [target as `0x${string}`, parseEther('100')]
-            });
+if (apntsBal < parseEther('10')) {
+    const mintHash = await adminWallet.writeContract({
+        address: apntsAddr,
+        abi: ERC20_ABI,
+        functionName: 'mint',
+        args: [target, parseEther('100')]
+    });
             await PUBLIC_CLIENT.waitForTransactionReceipt({ hash: mintHash });
             results.push({ name: "Gas Token Minting", amount: "100 aPNTs", tx: mintHash, status: "success" });
         } else {
@@ -334,21 +333,21 @@ app.post('/faucet', async (req, res) => {
             'function balanceOf(address) view returns (uint256)',
             'function depositTo(address) payable'
         ]);
-        const spDeposit = await PUBLIC_CLIENT.readContract({
-            address: config.entryPoint as `0x${string}`,
-            abi: entryPointAbi,
-            functionName: 'balanceOf',
-            args: [config.superPaymaster as `0x${string}`]
-        });
-        
-        if (spDeposit < parseEther('0.05')) {
-            const depositHash = await adminWallet.writeContract({
-                address: config.entryPoint as `0x${string}`,
-                abi: entryPointAbi,
-                functionName: 'depositTo',
-                args: [config.superPaymaster as `0x${string}`],
-                value: parseEther('0.1')
-            });
+const spDeposit = await PUBLIC_CLIENT.readContract({
+    address: config.entryPoint,
+    abi: entryPointAbi,
+    functionName: 'balanceOf',
+    args: [config.superPaymaster]
+});
+
+if (spDeposit < parseEther('0.05')) {
+    const depositHash = await adminWallet.writeContract({
+        address: config.entryPoint,
+        abi: entryPointAbi,
+        functionName: 'depositTo',
+        args: [config.superPaymaster],
+        value: parseEther('0.1')
+    });
             await PUBLIC_CLIENT.waitForTransactionReceipt({ hash: depositHash });
             results.push({ name: "Paymaster Deposit Top-up", amount: "0.1 ETH", tx: depositHash, status: "success" });
         }
@@ -358,54 +357,53 @@ app.post('/faucet', async (req, res) => {
         try {
             const timestamp = Math.floor(Date.now() / 1000);
             const price = 300000000000n; // $3000 * 1e8
-            const upHash = await adminWallet.writeContract({
-                address: config.superPaymaster as `0x${string}`,
-                abi: pmAbi,
-                functionName: 'updatePriceDVT',
-                args: [price, BigInt(timestamp), '0x']
-            });
+    const upHash = await adminWallet.writeContract({
+        address: config.superPaymaster,
+        abi: pmAbi,
+        functionName: 'updatePriceDVT',
+        args: [price, BigInt(timestamp), '0x']
+    });
             await PUBLIC_CLIENT.waitForTransactionReceipt({ hash: upHash });
             results.push({ name: "Paymaster Price Update", tx: upHash, status: "success" });
-        } catch (e: any) {
-            console.log(`   ⚠️ Price Update Skipped: ${e.message.slice(0, 100)}`);
-        }
+} catch (e) {
+    console.log(`   ⚠️ Price Update Skipped: ${e.message?.slice(0, 100)}`);
+}
 
-        // 5. Approve SuperPaymaster
-        const spAddress = config.superPaymaster as `0x${string}`;
-        const allowance = await PUBLIC_CLIENT.readContract({
-            address: config.aPNTs as `0x${string}`,
-            abi: ERC20_ABI,
-            functionName: 'allowance',
-            args: [target as `0x${string}`, spAddress]
-        });
+const spAddress = config.superPaymaster;
+const allowance = await PUBLIC_CLIENT.readContract({
+    address: config.aPNTs,
+    abi: ERC20_ABI,
+    functionName: 'allowance',
+    args: [target, spAddress]
+});
 
-        if (allowance < parseEther('500') && ownerKey) {
-             const ownerAccount = privateKeyToAccount(ownerKey as `0x${string}`);
-             const ownerClient = createWalletClient({ account: ownerAccount, chain: sepolia, transport: http(RPC_URL) });
-             
-             const approveData = encodeFunctionData({
-                abi: ERC20_ABI,
-                functionName: 'approve',
-                args: [spAddress, parseEther('1000')]
-            });
-            const execApproveData = encodeFunctionData({
-                abi: ACCOUNT_ABI,
-                functionName: 'execute',
-                args: [config.aPNTs as `0x${string}`, 0n, approveData]
-            });
-            const spApproveHash = await ownerClient.sendTransaction({
-                to: target as `0x${string}`,
-                data: execApproveData
-            });
+if (allowance < parseEther('500') && ownerKey) {
+     const ownerAccount = privateKeyToAccount(ownerKey);
+     const ownerClient = createWalletClient({ account: ownerAccount, chain: sepolia, transport: http(RPC_URL) });
+     
+     const approveData = encodeFunctionData({
+        abi: ERC20_ABI,
+        functionName: 'approve',
+        args: [spAddress, parseEther('1000')]
+    });
+    const execApproveData = encodeFunctionData({
+        abi: ACCOUNT_ABI,
+        functionName: 'execute',
+        args: [config.aPNTs, 0n, approveData]
+    });
+    const spApproveHash = await ownerClient.sendTransaction({
+        to: target,
+        data: execApproveData
+    });
             await PUBLIC_CLIENT.waitForTransactionReceipt({ hash: spApproveHash });
             results.push({ name: "SuperPaymaster Approval", tx: spApproveHash, status: "success" });
         }
 
         res.json({ success: true, results });
-    } catch (error: any) {
-        console.error(`❌ Faucet Internal Error: ${error.message}`);
-        res.status(500).json({ error: error.message, results });
-    }
+} catch (error) {
+    console.error(`❌ Faucet Internal Error: ${error.message}`);
+    res.status(500).json({ error: error.message, results });
+}
 });
 
 // Export for Vercel
