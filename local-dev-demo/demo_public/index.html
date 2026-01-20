@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AAStar Gasless Demo - Two-Service Architecture</title>
+    <style>
+        :root {
+            --primary: #6366f1;
+            --bg: #0f172a;
+            --card-bg: #1e293b;
+            --text: #f8fafc;
+        }
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .container {
+            width: 90%;
+            max-width: 800px;
+            background: var(--card-bg);
+            padding: 2rem;
+            border-radius: 1rem;
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        h1 {
+            text-align: center;
+            background: linear-gradient(to right, #818cf8, #c084fc);
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .controls {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        button {
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            border: none;
+            background: var(--primary);
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        button:hover:not(:disabled) {
+            background: #4f46e5;
+            transform: translateY(-2px);
+        }
+        button:disabled {
+            background: #475569;
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
+        .log-container {
+            background: #020617;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            height: 250px;
+            overflow-y: auto;
+            font-family: 'Fira Code', monospace;
+            font-size: 0.8rem;
+            border: 1px solid rgba(255,255,255,0.05);
+            margin-bottom: 1.5rem;
+        }
+        .log-entry {
+            margin-bottom: 0.4rem;
+            border-left: 2px solid var(--primary);
+            padding-left: 0.5rem;
+        }
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+        }
+        .status-item {
+            background: rgba(255,255,255,0.03);
+            padding: 0.75rem;
+            border-radius: 0.5rem;
+        }
+        .status-label {
+            font-size: 0.7rem;
+            color: #94a3b8;
+            margin-bottom: 0.2rem;
+        }
+        .status-value {
+            font-size: 0.85rem;
+            word-break: break-all;
+        }
+        .faucet-service { font-size: 0.7rem; color: #10b981; text-align: center; margin-bottom: 1rem; }
+        .spinner {
+            border: 3px solid rgba(255,255,255,0.1);
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            border-left-color: var(--primary);
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            vertical-align: middle;
+            margin-right: 8px;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .result-box {
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+            padding: 1rem;
+            margin-top: 0.5rem;
+            border-radius: 0.5rem;
+            font-size: 0.8rem;
+        }
+        .result-row { display: flex; justify-content: space-between; margin-bottom: 0.4rem; }
+        .result-link { color: #34d399; text-decoration: none; }
+        .result-link:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>AAStar Gasless Demo</h1>
+        <div class="faucet-service">Connected to: http://localhost:3002 (Anni Faucet)</div>
+        
+        <div class="controls">
+            <button id="genBtn">1. Generate Account</button>
+            <button id="fundBtn" disabled>2. Get Funding (Faucet)</button>
+            <button id="testBtn" disabled>3. Run Gasless Test</button>
+        </div>
+
+        <div class="log-container" id="logContainer">
+            <div class="log-entry">Welcome! Start by generating a fresh test account.</div>
+        </div>
+
+        <div class="status-grid">
+            <div class="status-item">
+                <div class="status-label">EOA ADDRESS</div>
+                <div class="status-value" id="eoaAddr">-</div>
+            </div>
+            <div class="status-item">
+                <div class="status-label">AA ADDRESS</div>
+                <div class="status-value" id="aaAddr">-</div>
+            </div>
+            <div class="status-item" style="grid-column: span 2;">
+                <div class="status-label">TX HASH</div>
+                <div class="status-value" id="txHash">-</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const logContainer = document.getElementById('logContainer');
+        const genBtn = document.getElementById('genBtn');
+        const fundBtn = document.getElementById('fundBtn');
+        const testBtn = document.getElementById('testBtn');
+        
+        const eoaAddr = document.getElementById('eoaAddr');
+        const aaAddr = document.getElementById('aaAddr');
+        const txHash = document.getElementById('txHash');
+
+        let currentPrivateKey = '';
+        let currentAA = '';
+
+        function appendLog(msg) {
+            const div = document.createElement('div');
+            div.className = 'log-entry';
+            div.innerHTML = msg; // Support HTML for spinner
+            logContainer.appendChild(div);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+
+        async function pollState() {
+            try {
+                const res = await fetch('/api/state');
+                const state = await res.json();
+                // Avoid overwriting manual logs if we are just polling state
+                // Only update status fields
+                eoaAddr.textContent = state.userAddress || '-';
+                aaAddr.textContent = state.aaAddress || '-';
+                if (state.txHash) {
+                    txHash.innerHTML = `<a href="https://sepolia.etherscan.io/tx/${state.txHash}" target="_blank" style="color: #818cf8">${state.txHash}</a>`;
+                }
+            } catch (e) {}
+        }
+        setInterval(pollState, 2000);
+
+        genBtn.onclick = async () => {
+            const res = await fetch('/api/generate-account', { method: 'POST' });
+            const data = await res.json();
+            if (data.success) {
+                currentPrivateKey = data.privateKey;
+                currentAA = data.aaAddress;
+                fundBtn.disabled = false;
+                genBtn.disabled = true;
+                appendLog(`✅ Account Generated.<br>AA: ${currentAA}`);
+            }
+        };
+
+        fundBtn.onclick = async () => {
+            fundBtn.disabled = true;
+            appendLog('<span class="spinner"></span> Requesting L4 Onboarding & Funding...');
+            try {
+                const res = await fetch('/api/fund', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ aaAddress: currentAA, ownerKey: currentPrivateKey })
+                });
+                const data = await res.json();
+                
+                // Update specific log entry to remove spinner if possible, or just append success
+                // For simplicity, we just append new success log
+                
+                if (data.success) {
+                    // Update log to remove spinner text (simple replace)
+                    logContainer.lastElementChild.innerHTML = `🌊 Requesting L4 Onboarding & Funding... (Done)`;
+                    appendLog("✨ Onboarding & Funding Success!");
+                    
+                    if (data.results && data.results.length > 0) {
+                        const resultDiv = document.createElement('div');
+                        resultDiv.className = 'result-box';
+                        let html = '<strong>Funding Details:</strong><br>';
+                        
+                        // ... (same loop as before)
+                        data.results.forEach(step => {
+                             if (step.status === 'success') {
+                                html += `<div class="result-row">
+                                    <span>✅ ${step.name} ${step.amount ? '(' + step.amount + ')' : ''}</span>
+                                    <a href="https://sepolia.etherscan.io/tx/${step.tx}" target="_blank" class="result-link">View Tx</a>
+                                </div>`;
+                            } else {
+                                html += `<div class="result-row"><span style="color: #9ca3af">⏭️ ${step.name} (${step.status})</span></div>`;
+                            }
+                        });
+                        resultDiv.innerHTML = html;
+                        logContainer.appendChild(resultDiv);
+                        logContainer.scrollTop = logContainer.scrollHeight;
+                    }
+                    
+                    testBtn.disabled = false;
+                } else {
+                    logContainer.lastElementChild.innerHTML = `🌊 Requesting L4 Onboarding & Funding... (Failed)`;
+                    appendLog("❌ Error: " + data.error);
+                    fundBtn.disabled = false;
+                }
+            } catch (e) {
+                appendLog("❌ Connection Failed: " + e.message);
+                fundBtn.disabled = false;
+            }
+        };
+
+        testBtn.onclick = async () => {
+            testBtn.disabled = true;
+            appendLog('<span class="spinner"></span> Initiating gasless test...');
+            const res = await fetch('/api/run-test', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ privateKey: currentPrivateKey })
+            });
+            const data = await res.json();
+            
+            if (data.success) {
+                logContainer.lastElementChild.innerHTML = `🏹 Initiating gasless test... (Done)`;
+                appendLog("🏁 Journey Complete!");
+                
+                const d = data.details;
+                const resultDiv = document.createElement('div');
+                resultDiv.className = 'result-box';
+                resultDiv.style.borderColor = 'rgba(99, 102, 241, 0.3)';
+                resultDiv.style.background = 'rgba(99, 102, 241, 0.1)';
+                
+                resultDiv.innerHTML = `
+                    <strong>Gasless Transfer Details:</strong><br><br>
+                    <div class="result-row">
+                        <span>📤 Sender (AA):</span>
+                        <a href="https://sepolia.etherscan.io/address/${d.sender}" target="_blank" class="result-link">${d.sender.slice(0,8)}...</a>
+                    </div>
+                    <div class="result-row">
+                        <span>📥 Receiver (Anni Op):</span>
+                        <a href="https://sepolia.etherscan.io/address/${d.recipient}" target="_blank" class="result-link">${d.recipient.slice(0,8)}...</a>
+                    </div>
+                    <div class="result-row">
+                        <span>💸 Amount:</span>
+                        <span>${d.amount} ${d.symbol}</span>
+                    </div>
+                     <div class="result-row" style="margin-top: 5px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 5px;">
+                        <span>📜 Transaction:</span>
+                        <a href="https://sepolia.etherscan.io/tx/${d.txHash}" target="_blank" class="result-link">View on Etherscan</a>
+                    </div>
+                `;
+                logContainer.appendChild(resultDiv);
+                logContainer.scrollTop = logContainer.scrollHeight;
+            } else {
+                logContainer.lastElementChild.innerHTML = `🏹 Initiating gasless test... (Failed)`;
+                appendLog("❌ Error: " + data.error);
+                testBtn.disabled = false;
+            }
+        };
+    </script>
+</body>
+</html>
