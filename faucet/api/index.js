@@ -79,7 +79,8 @@ const config = {
     paymasterFactory: process.env.PAYMASTER_FACTORY_ADDR || fileConfig.paymasterFactory,
     sbt: process.env.MYSBT_ADDR || fileConfig.sbt,
     simpleAccountFactory: process.env.SIMPLE_ACCOUNT_FACTORY || fileConfig.simpleAccountFactory,
-    aPNTs: process.env.APNTS_ADDR || fileConfig.aPNTs || fileConfig.contracts?.aPNTs,
+    apnts: process.env.APNTS_ADDR || fileConfig.aPNTs || fileConfig.contracts?.aPNTs,
+    community: process.env.COMMUNITY_ADDR || '0x7F2C6C1BFA354d24B2C8D237731737A4949577', // Default to Anni for demo if not set
     entryPoint: process.env.ENTRYPOINT_ADDR || fileConfig.entryPoint || '0x0000000071727De22E5E9d8BAf0edAc6f37da032'
 };
 
@@ -280,13 +281,10 @@ if (!isMember) {
                 results.push({ name: "Staking Approval", tx: approveHash, status: "success" });
 
                 // iii. Register
-                // Hardcoded Anni/Community for Demo
-                // iii. Register
-                // Hardcoded Anni/Community for Demo
-                const anni = "0x7F2C6C1BFA354d24B2C8D237731737A49495777"; 
+                const targetCommunity = config.community;
                 const roleData = encodeAbiParameters(
                     parseAbiParameters('address acc, address comm, string avatar, string ens, uint256 stake'),
-                    [target, anni, "", "", parseEther('0.3')]
+                    [target, targetCommunity, "", "", parseEther('0.3')]
                 );
                 const regData = encodeFunctionData({
                     abi: REGISTRY_ABI,
@@ -309,7 +307,7 @@ if (!isMember) {
             }
         }
 
-const apntsAddr = config.aPNTs;
+const apntsAddr = config.apnts;
 const apntsBal = await PUBLIC_CLIENT.readContract({
     address: apntsAddr,
     abi: ERC20_ABI,
