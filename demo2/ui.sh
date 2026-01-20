@@ -1,6 +1,8 @@
 #!/bin/bash
 echo "🛑 Killing port 3001 (Demo UI)..."
 kill -9 $(lsof -t -i:3001) 2>/dev/null || true
+echo "🛑 Killing port 3002 (Local Faucet) to ensure production use..."
+kill -9 $(lsof -t -i:3002) 2>/dev/null || true
 
 # Enter script directory
 cd "$(dirname "$0")" || exit

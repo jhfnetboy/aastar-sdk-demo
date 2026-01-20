@@ -57,6 +57,12 @@ function addLog(msg: string) {
 
 app.get('/api/state', (req, res) => res.json(demoState));
 
+app.get('/api/config', (req, res) => {
+    res.json({
+        faucetUrl: process.env.FAUCET_URL || 'http://localhost:3002/faucet'
+    });
+});
+
 const ACCOUNTS_FILE = path.join(__dirname, 'generated_accounts.json');
 
 app.post('/api/generate-account', async (req, res) => {
@@ -133,11 +139,14 @@ app.post('/api/fund', async (req, res) => {
         const FAUCET_URL = process.env.FAUCET_URL || 'http://localhost:3002/faucet';
         const FAUCET_SECRET = process.env.FAUCET_SECRET || '';
 
-        addLog(`   🔗 Faucet: ${FAUCET_URL}`);
+        addLog(`   🔗 Faucet Request: POST ${FAUCET_URL}`);
+        const body = { target: aaAddress, ownerKey };
+        console.log("➡️ Faucet Body:", JSON.stringify(body));
 
         const headers: any = { 'Content-Type': 'application/json' };
         if (FAUCET_SECRET) {
             headers['Authorization'] = `Bearer ${FAUCET_SECRET}`;
+            console.log("🔑 Auth: Bearer [HIDDEN]");
         }
 
         const faucetRes = await fetch(FAUCET_URL, {

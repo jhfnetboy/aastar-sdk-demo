@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AAStar Gasless Demo - Two-Service Architecture</title>
+    <title>AAStar Gasless Sepolia Demo</title>
     <style>
         :root {
             --primary: #6366f1;
@@ -126,8 +126,8 @@
 </head>
 <body>
     <div class="container">
-        <h1>AAStar Gasless Demo</h1>
-        <div class="faucet-service">Connected to: http://localhost:3002 (Anni Faucet)</div>
+        <h1>AAStar Gasless Sepolia Demo</h1>
+        <div class="faucet-service" id="faucetDisplay">Loading Connection Info...</div>
         
         <div class="controls">
             <button id="genBtn">1. Generate Account</button>
@@ -175,6 +175,17 @@
             logContainer.appendChild(div);
             logContainer.scrollTop = logContainer.scrollHeight;
         }
+
+        async function loadConfig() {
+            try {
+                const res = await fetch('/api/config');
+                const conf = await res.json();
+                document.getElementById('faucetDisplay').textContent = `Connected to: ${conf.faucetUrl}`;
+            } catch (e) {
+                document.getElementById('faucetDisplay').textContent = `Status: Offline (Check Backend)`;
+            }
+        }
+        loadConfig();
 
         async function pollState() {
             try {
