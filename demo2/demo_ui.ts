@@ -189,6 +189,30 @@ app.post('/api/run-test', async (req, res) => {
             tokenAddress: config.aPNTs,
             txHash
         };
+
+        // Persist Transaction to History
+        try {
+            if (fs.existsSync(ACCOUNTS_FILE)) {
+                const accounts = JSON.parse(fs.readFileSync(ACCOUNTS_FILE, 'utf-8'));
+                const accountIndex = accounts.findIndex((a: any) => a.aaAddress.toLowerCase() === demoState.aaAddress.toLowerCase());
+                
+                if (accountIndex !== -1) {
+                    if (!accounts[accountIndex].transactions) {
+                        accounts[accountIndex].transactions = [];
+                    }
+                    accounts[accountIndex].transactions.push({
+                        hash: txHash,
+                        timestamp: new Date().toISOString(),
+                        type: 'Gasless aPNTs Transfer',
+                        etherscan: `https://sepolia.etherscan.io/tx/${txHash}`
+                    });
+                    fs.writeFileSync(ACCOUNTS_FILE, JSON.stringify(accounts, null, 2));
+                    addLog("💾 Transaction saved to account history.");
+                }
+            }
+        } catch (e: any) {
+            console.error("Failed to persist transaction:", e);
+        }
         
         res.json({ success: true, details });
     } catch (error: any) {
