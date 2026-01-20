@@ -374,13 +374,13 @@ if (spDeposit < parseEther('0.05')) {
     console.log(`   ⚠️ Price Update Skipped: ${e.message?.slice(0, 100)}`);
 }
 
-const spAddress = config.superPaymaster;
-const allowance = await PUBLIC_CLIENT.readContract({
-    address: config.aPNTs,
-    abi: ERC20_ABI,
-    functionName: 'allowance',
-    args: [target, spAddress]
-});
+        const spAddress = getAddress(config.superPaymaster);
+        const allowance = await PUBLIC_CLIENT.readContract({
+            address: getAddress(config.apnts),
+            abi: ERC20_ABI,
+            functionName: 'allowance',
+            args: [normalizedTarget, spAddress]
+        });
 
 if (allowance < parseEther('500') && ownerKey) {
      const ownerAccount = privateKeyToAccount(ownerKey);
