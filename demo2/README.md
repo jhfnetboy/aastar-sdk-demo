@@ -32,8 +32,10 @@ cd demo2
 
 ```bash
 FAUCET_URL="https://your-faucet-service.vercel.app/faucet"
-FAUCET_SECRET="your-secret-password"
+FAUCET_SECRET="your-secret-password-here"
 ```
+
+> **注意**: 请勿将真实的 `FAUCET_SECRET` 提交到公开代码库中！即便是在测试网，保持良好的安全习惯也很重要。
 
 ## 📂 目录结构 & 文件作用
 

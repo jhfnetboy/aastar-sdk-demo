@@ -15,11 +15,28 @@ This project is configured for Vercel Serverless Functions (`api/index.ts`).
     | :--- | :--- |
     | `FAUCET_SECRET` | A password/token to protect the API. |
     | `PRIVATE_KEY_SUPPLIER` | The private key of the admin wallet (must have ETH/GToken/aPNTs). |
-    | `SEPOLIA_RPC_URL` | RPC Endpoint for Sepolia. |
-
-3.  **Config**: Ensure `config.sepolia.json` is deployed (included in repo).
-
 ## 🛠️ Usage
+
+...
+
+## ⚙️ Configuration
+
+### Environment Variables
+Configure these in your Vercel Project Settings or local `.env`:
+
+| Variable | Description | Example |
+| :--- | :--- | :--- |
+| `FAUCET_SECRET` | 🔒 **Secret Key** to protect the API. | `s3cr3t-k3y-d0-n0t-sh4r3` |
+| `PRIVATE_KEY_SUPPLIER` | 🔒 **Admin Wallet Key** (Must have funds). | `0x...` |
+| `SEPOLIA_RPC_URL` | RPC Endpoint. | `https://eth-sepolia...` |
+
+> ⚠️ **IMPORTANT**: Never commit `.env` files with real keys to GitHub!
+
+## 🛠️ Tech Stack
+*   **Runtime**: Node.js (Vercel Serverless)
+*   **SDK**: `@aastar/sdk` (Logic Ported/Inlined)
+*   **Blockchain**: Viem (Sepolia)
+*   **Security**: `crypto.timingSafeEqual` for constant-time auth checks.
 
 ### API Endpoint
 
