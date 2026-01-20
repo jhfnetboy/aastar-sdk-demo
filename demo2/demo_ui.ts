@@ -38,7 +38,8 @@ const state = JSON.parse(fs.readFileSync(STATE_PATH, 'utf-8'));
 const RPC_URL = process.env.SEPOLIA_RPC_URL || 'https://rpc.sepolia.org';
 const PUBLIC_CLIENT = createPublicClient({
     chain: sepolia,
-    transport: http(RPC_URL)
+    transport: http(RPC_URL),
+    pollingInterval: 4_000 // Slow it down to avoid rate limits and wait longer
 });
 
 let demoState = {
