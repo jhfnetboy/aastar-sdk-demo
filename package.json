@@ -1,0 +1,5 @@
+{
+	"dependencies": {
+		"@aastar/sdk": "0.16.20"
+	}
+}
