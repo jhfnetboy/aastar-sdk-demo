@@ -1,0 +1,3 @@
+[submodule "contracts/sale"]
+	path = contracts/sale
+	url = https://github.com/jhfnetboy/Custom-Sale-Contract
