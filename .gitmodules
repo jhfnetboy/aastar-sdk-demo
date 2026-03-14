@@ -1,3 +1,6 @@
 [submodule "contracts/sale"]
 	path = contracts/sale
 	url = https://github.com/jhfnetboy/Custom-Sale-Contract
+[submodule "yetanotheraa"]
+	path = yetanotheraa
+	url = git@github.com:AAStarCommunity/YetAnotherAA.git
