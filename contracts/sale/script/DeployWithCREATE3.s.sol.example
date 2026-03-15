@@ -1,0 +1,52 @@
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.25;
+
+import {Script, console} from "forge-std/Script.sol";
+import {SaleContract} from "../src/SaleContract.sol";
+import {CREATE3Factory} from "create3-factory/CREATE3Factory.sol";
+
+/**
+ * @title DeployWithCREATE3
+ * @notice This is an EXAMPLE script to deploy SaleContract using the CREATE3 method.
+ *         This provides a deterministic address that does not depend on the contract's bytecode.
+ * @dev To use this script:
+ *      1. Rename it from .s.sol.example to .s.sol
+ *      2. Fill in the required parameters below (salt, factory address, etc.).
+ *      3. Run it with `forge script script/DeployWithCREATE3.s.sol ...`
+ */
+contract DeployWithCREATE3 is Script {
+    // The canonical CREATE3 factory address is the same on all chains.
+    CREATE3Factory constant factory = CREATE3Factory(0x9999999999999999999999999999999999999999);
+
+    function run() external returns (address deployedAddress) {
+        // ==================================================================
+        // =           ! ! !   CONFIGURATION - FILL THIS IN   ! ! !
+        // ==================================================================
+        bytes32 salt = keccak256(abi.encodePacked("my-sale-contract-salt-v1"));
+        address gTokenAddress = 0x...;    // TODO: Replace with your actual GToken address
+        address treasuryAddress = 0x...; // TODO: Replace with your actual Treasury address
+        address ownerAddress = msg.sender;      // TODO: Replace with your actual Owner address (e.g., a multisig)
+        // ==================================================================
+
+        // 1. Predict the deployment address
+        deployedAddress = factory.getDeployed(vm.addr(vm.envUint("PRIVATE_KEY")), salt);
+        console.log("Predicted contract address:", deployedAddress);
+
+        // 2. Get the creation bytecode for our SaleContract
+        bytes memory creationBytecode = abi.encodePacked(
+            type(SaleContract).creationCode,
+            abi.encode(gTokenAddress, treasuryAddress, ownerAddress)
+        );
+
+        // 3. Broadcast the deployment transaction
+        vm.startBroadcast();
+        factory.deploy(salt, creationBytecode);
+        vm.stopBroadcast();
+
+        console.log("SaleContract successfully deployed to:", deployedAddress);
+
+        // You can now interact with the deployed contract, for example, to set the verifier:
+        // SaleContract saleContract = SaleContract(payable(deployedAddress));
+        // saleContract.setWhitelistVerifier(0x...);
+    }
+}
